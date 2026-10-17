@@ -1936,7 +1936,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                                     <button type="button" data-action="remove-receipt" data-id="${escapeHtml(r.id)}" aria-label="Bỏ ảnh này" class="icon-btn absolute top-0 right-0 bg-black/50 text-white hover:bg-black/70"><i data-lucide="x" class="w-4 h-4"></i></button>
                                                 </div>`;
                                             }).join('')}
-                                            ${receipts.length < MAX_RECEIPTS_PER_EXPENSE ? `<label for="receipt-file" class="w-24 h-24 border-2 border-dashed border-gray-300 text-gray-500 hover:text-indigo-600 flex flex-col items-center justify-center gap-1 text-xs text-center cursor-pointer"><i data-lucide="camera" class="w-5 h-5"></i>Thêm ảnh</label><input type="file" id="receipt-file" accept="image/*" multiple class="sr-only" />` : ''}
+                                            ${receipts.length < MAX_RECEIPTS_PER_EXPENSE ? `<div class="w-24 h-24 border-2 border-dashed border-gray-300 text-gray-500 hover:text-indigo-600 flex flex-col items-center justify-center gap-1 text-xs text-center relative"><i data-lucide="camera" class="w-5 h-5"></i>Thêm ảnh<input type="file" id="receipt-file" accept="image/*" multiple aria-label="Thêm ảnh hóa đơn" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /></div>` : ''}
                                         </div>
                                     </div>`;
                                     })()}
@@ -1974,8 +1974,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
                             <div class="mb-6">
                                 <h4 class="text-sm font-medium text-gray-700 mb-2">Hoặc tải ảnh lên</h4>
-                                <label for="custom-image-upload" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] cursor-pointer text-sm"><i data-lucide="upload" class="w-4 h-4"></i> Chọn ảnh từ máy</label>
-                                <input type="file" id="custom-image-upload" accept="image/*" class="sr-only"/>
+                                <div class="relative box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] text-sm"><i data-lucide="upload" class="w-4 h-4"></i> Chọn ảnh từ máy<input type="file" id="custom-image-upload" accept="image/*" aria-label="Chọn ảnh bìa từ máy" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /></div>
                             </div>
 
                             <div class="modal-actions flex justify-end gap-2">
@@ -2113,8 +2112,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                             </div>
                             <div class="space-y-4">
                                 <div>
-                                    <label for="bank-qr-file" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] cursor-pointer text-sm"><i data-lucide="scan-line" class="w-4 h-4"></i> Tải ảnh QR ngân hàng</label>
-                                    <input type="file" id="bank-qr-file" accept="image/*" class="sr-only" />
+                                    <div class="relative box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] text-sm"><i data-lucide="scan-line" class="w-4 h-4"></i> Tải ảnh QR ngân hàng<input type="file" id="bank-qr-file" accept="image/*" aria-label="Tải ảnh QR ngân hàng" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /></div>
                                     <p class="text-xs text-gray-500 mt-1">Chọn ảnh chụp mã QR nhận tiền từ app ngân hàng để tự điền. Ảnh chỉ được đọc trên máy này, không tải lên đâu cả.</p>
                                 </div>
                                 <div>
@@ -2153,9 +2151,10 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const to = members.find(m => m.id === pq.toId);
             const bank = store.bankAccounts[pq.toId];
             if (!trip || !from || !to || !bank) return null;
-            const note = toAsciiText(`EasyTrip ${from.name} tra ${to.name}`).slice(0, 25).trim();
+            const defaultNote = toAsciiText(`EasyTrip ${from.name} tra ${to.name}`).slice(0, 25).trim();
+            const note = pq.note == null ? defaultNote : toAsciiText(pq.note).slice(0, 25).trim();
             const payload = buildVietQR({ bin: bank.bin, accountNumber: bank.accountNumber, amount: pq.amount, purpose: note });
-            return { pq, from, to, bank, note, payload };
+            return { pq, from, to, bank, note, defaultNote, payload };
         };
 
         // PNG with the QR and transfer details, drawn locally, for saving or sending to the payer.
@@ -2192,6 +2191,10 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         };
 
+        const canShareFiles = () => {
+            try { return !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] })); } catch (e) { return false; }
+        };
+
         const renderPayQrModal = () => {
             const info = currentPayQr();
             if (!info) return '';
@@ -2209,17 +2212,28 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                             <div class="flex flex-col items-center gap-2">
                                 <div class="w-56 h-56 bg-white p-1 border border-gray-200" aria-label="Mã VietQR chuyển khoản">${qrSvg(payload)}</div>
                                 <p class="text-xs text-gray-500 text-center">Quét bằng app ngân hàng trên máy khác, hoặc lưu ảnh rồi trong app chọn <b>Quét QR → chọn ảnh từ thư viện</b>.</p>
-                                <div class="w-full grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                                    <button data-action="save-pay-qr" class="box-btn bg-indigo-600 text-white flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="download" class="w-4 h-4"></i> Lưu / gửi ảnh QR</button>
+                                <div class="w-full grid grid-cols-1 gap-2 mt-1">
+                                    <button data-action="download-pay-qr" class="box-btn bg-indigo-600 text-white flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="download" class="w-4 h-4"></i> Tải ảnh QR về máy</button>
+                                    ${canShareFiles() ? `<button data-action="share-pay-qr" class="box-btn-ghost flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="share-2" class="w-4 h-4"></i> Gửi ảnh QR</button>` : ''}
                                     <button data-action="copy-pay-info" class="box-btn-ghost flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="copy" class="w-4 h-4"></i> Sao chép STK &amp; số tiền</button>
+                                </div>
+                            </div>
+                            <div class="mt-4 grid grid-cols-1 gap-3">
+                                <div>
+                                    <label for="pay-amount" class="block text-sm font-medium text-gray-700 mb-1">Số tiền</label>
+                                    <input type="text" id="pay-amount" inputmode="numeric" value="${escapeHtml(pq.amountText != null ? pq.amountText : displayAmount(pq.amount))}" class="w-full rounded-md border border-gray-300 p-2 font-bold focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    ${Math.round(pq.amount) !== Math.round(pq.suggestedAmount) ? `<p class="text-xs text-amber-700 mt-1">Gợi ý theo công nợ: ${formatCurrency(pq.suggestedAmount)} · <button type="button" data-action="reset-pay-amount" class="underline min-h-[40px]">Dùng lại</button></p>` : `<p class="text-xs text-gray-500 mt-1">Theo công nợ. Sửa nếu muốn trả một phần.</p>`}
+                                </div>
+                                <div>
+                                    <label for="pay-note" class="block text-sm font-medium text-gray-700 mb-1">Nội dung chuyển khoản</label>
+                                    <input type="text" id="pay-note" maxlength="40" value="${escapeHtml(pq.note == null ? note : pq.note)}" class="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    <p class="text-xs text-gray-500 mt-1">Trong QR: <span class="font-medium text-gray-700">${escapeHtml(note) || '(trống)'}</span> — không dấu, tối đa 25 ký tự.</p>
                                 </div>
                             </div>
                             <dl class="mt-4 text-sm divide-y divide-gray-100 border border-gray-200 rounded-md">
                                 <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Ngân hàng</dt><dd class="font-medium text-right">${escapeHtml(bank.bankName)}</dd></div>
                                 <div class="flex justify-between items-center gap-3 px-3 py-1"><dt class="text-gray-500">Số TK</dt><dd class="flex items-center gap-1 font-medium"><span class="break-all">${escapeHtml(bank.accountNumber)}</span><button data-action="copy-account" data-value="${escapeHtml(bank.accountNumber)}" aria-label="Sao chép số tài khoản" class="icon-btn text-gray-400 hover:text-indigo-600"><i data-lucide="copy" class="w-4 h-4"></i></button></dd></div>
                                 <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Chủ TK</dt><dd class="font-medium text-right break-words">${escapeHtml(bank.accountName || '—')}</dd></div>
-                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Số tiền</dt><dd class="font-bold text-right">${formatCurrency(pq.amount)}</dd></div>
-                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Nội dung</dt><dd class="font-medium text-right break-words">${escapeHtml(note)}</dd></div>
                             </dl>
                         </div>
                     </div>
@@ -2424,26 +2438,28 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 }
             }
             if (action === 'open-pay-qr') {
-                store.payQr = { fromId: target.dataset.from, toId: target.dataset.to, amount: Number(target.dataset.amount) || 0 };
+                const amount = Number(target.dataset.amount) || 0;
+                store.payQr = { fromId: target.dataset.from, toId: target.dataset.to, amount, suggestedAmount: amount, note: null };
                 render();
             }
             if (action === 'close-pay-qr') { store.payQr = null; render(); }
-            if (action === 'save-pay-qr') {
+            if (action === 'reset-pay-amount' && store.payQr) { store.payQr.amount = store.payQr.suggestedAmount; store.payQr.amountText = null; render(); }
+            if (action === 'download-pay-qr' || action === 'share-pay-qr') {
                 const info = currentPayQr();
                 if (!info) return;
                 const blob = await payQrImage(info);
                 const file = new File([blob], `chuyen-khoan-${toAsciiText(info.to.name).replace(/ /g, '-').toLowerCase() || 'qr'}.png`, { type: 'image/png' });
-                // Phones: the share sheet offers "Save image", Zalo, Messenger...; elsewhere download the file.
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                if (action === 'share-pay-qr' && canShareFiles()) {
                     try { await navigator.share({ files: [file], title: 'Mã QR chuyển khoản' }); } catch (err) { if (err && err.name !== 'AbortError') showToast('Không chia sẻ được ảnh.', 'error'); }
-                } else {
-                    const url = URL.createObjectURL(file);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = file.name;
-                    document.body.appendChild(a); a.click(); a.remove();
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                    showToast('Đã lưu ảnh QR', 'success');
+                    return;
                 }
+                // Saves to the phone's Downloads (shows up in the gallery / Files app)
+                const url = URL.createObjectURL(file);
+                const a = document.createElement('a');
+                a.href = url; a.download = file.name;
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                showToast('Đã tải ảnh QR về máy', 'success');
             }
             if (action === 'copy-pay-info') {
                 const info = currentPayQr();
@@ -2958,6 +2974,11 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             }
             if (e.target.id === 'ex-payer') store.expenseForm.payerId = e.target.value;
             if (e.target.id === 'adv-amount') store.advanceForm.amount = e.target.value;
+            if (store.payQr && (e.target.id === 'pay-amount' || e.target.id === 'pay-note')) {
+                if (e.target.id === 'pay-amount') { store.payQr.amountText = e.target.value; store.payQr.amount = parseAmount(e.target.value); }
+                else store.payQr.note = e.target.value;
+                render();
+            }
             if (store.bankModal) {
                 if (e.target.id === 'bank-account') store.bankModal.accountNumber = e.target.value;
                 if (e.target.id === 'bank-name') store.bankModal.accountName = e.target.value;
