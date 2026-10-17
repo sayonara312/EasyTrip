@@ -727,6 +727,18 @@
         };
 
         // Nén ảnh trước khi lưu để tránh vượt giới hạn 1 MiB/document của Firestore
+        // Receipt photos are stored inside Firestore documents, so each must stay small.
+        const RECEIPT_MAX_CHARS = 300000;
+        const RECEIPT_LEVELS = [[1280, 0.6], [1024, 0.5], [800, 0.45]];
+        const MAX_RECEIPTS_PER_EXPENSE = 3;
+        const compressReceipt = async (file, compress = compressImage) => {
+            for (const [maxDim, quality] of RECEIPT_LEVELS) {
+                const dataUrl = await compress(file, maxDim, quality);
+                if (dataUrl.length <= RECEIPT_MAX_CHARS) return dataUrl;
+            }
+            return null;
+        };
+
         const compressImage = (file, maxDim = 1280, quality = 0.7) => {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -833,7 +845,7 @@
 
         const syncScrollLock = () => {
             const overlayOpen = !!document.getElementById('confirm-overlay') || !!document.getElementById('prompt-overlay');
-            const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || store.shareModalOpen || store.advanceModalOpen || !!store.bankModal || !!store.payQr || overlayOpen;
+            const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || store.shareModalOpen || store.advanceModalOpen || !!store.bankModal || !!store.payQr || !!store.receiptViewer || overlayOpen;
             document.body.style.overflow = modalOpen ? 'hidden' : '';
             // The floating theme button would cover the sticky Save button of bottom sheets
             const themeSwitcher = document.getElementById('theme-switcher');
@@ -1018,6 +1030,8 @@
             bankAccounts: {}, // memberId -> { bin, bankName, accountNumber, accountName }; loaded only for editors
             bankModal: null, // { memberId, bin, accountNumber, accountName, filter }
             payQr: null, // { fromId, toId, amount }
+            receiptCache: {}, // receiptId -> data URL, or 'error'
+            receiptViewer: null, // { expenseId }
             advanceModalOpen: false,
             advanceForm: { memberId: '', receiverId: '', amount: '' },
             activeTab: 'expenses',
@@ -1104,6 +1118,24 @@
                 render();
             }, (error) => console.warn('Bank accounts listener:', error));
         };
+
+        // Receipt images are fetched only when someone looks at them.
+        const loadReceipts = async (ids) => {
+            const missing = (ids || []).filter(id => !(id in store.receiptCache));
+            if (!missing.length || !db) return;
+            await Promise.all(missing.map(async (id) => {
+                try {
+                    const snap = await getDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'receipts', id));
+                    store.receiptCache[id] = snap.exists() ? snap.data().data : 'error';
+                } catch (err) {
+                    console.warn('Receipt load failed:', err);
+                    store.receiptCache[id] = 'error';
+                }
+            }));
+            render();
+        };
+        const deleteReceiptDocs = (tripId, ids) => Promise.all((ids || []).map(id =>
+            deleteDoc(doc(db, TRIPS_COLLECTION, tripId, 'receipts', id)).catch(err => console.warn('Receipt delete failed:', err))));
 
         const randomKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
 
@@ -1283,6 +1315,8 @@
                 const batch = writeBatch(db);
                 joinRequests.forEach(d => batch.delete(d.ref));
                 bankAccounts.forEach(d => batch.delete(d.ref));
+                const tripToDelete = store.trips.find(t => t.id === id) || getActiveTrip();
+                ((tripToDelete && tripToDelete.expenses) || []).forEach(e => (e.receiptIds || []).forEach(rid => batch.delete(doc(db, TRIPS_COLLECTION, id, 'receipts', rid))));
                 batch.delete(doc(db, SECRETS_COLLECTION, id));
                 batch.delete(doc(db, TRIPS_COLLECTION, id));
                 await batch.commit();
@@ -1468,7 +1502,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <p class="text-sm text-gray-500"><span class="font-medium text-gray-700">${escapeHtml(payer)}</span> đã trả • <span class="text-gray-400 italic ml-1">${count === members.length ? 'Tất cả' : `Cho ${count} người`}</span></p>
                             </div>
                         </div>
-                        <div class="flex items-center justify-between sm:justify-end gap-1 sm:gap-3 flex-shrink-0 pl-12 sm:pl-0"><span class="font-bold text-gray-900 whitespace-nowrap">${formatCurrency(e.amount)}</span>${!store.isReadOnly ? `<span class="flex items-center"><button data-action="edit-expense" data-id="${escapeHtml(e.id)}" aria-label="Sửa khoản chi" class="icon-btn text-gray-400 hover:text-indigo-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button data-action="delete-expense" data-id="${escapeHtml(e.id)}" aria-label="Xóa khoản chi" class="icon-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></span>` : ''}</div>
+                        <div class="flex items-center justify-between sm:justify-end gap-1 sm:gap-3 flex-shrink-0 pl-12 sm:pl-0"><span class="font-bold text-gray-900 whitespace-nowrap">${formatCurrency(e.amount)}</span><span class="flex items-center">${(e.receiptIds || []).length ? `<button data-action="view-receipts" data-id="${escapeHtml(e.id)}" aria-label="Xem ${(e.receiptIds || []).length} ảnh hóa đơn" title="Ảnh hóa đơn" class="icon-btn gap-0.5 text-gray-500 hover:text-indigo-600"><i data-lucide="paperclip" class="w-4 h-4"></i><span class="text-xs">${(e.receiptIds || []).length}</span></button>` : ''}${!store.isReadOnly ? `<span class="flex items-center"><button data-action="edit-expense" data-id="${escapeHtml(e.id)}" aria-label="Sửa khoản chi" class="icon-btn text-gray-400 hover:text-indigo-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button data-action="delete-expense" data-id="${escapeHtml(e.id)}" aria-label="Xóa khoản chi" class="icon-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></span>` : ''}</span></div>
                     </div>`;
             };
 
@@ -1890,6 +1924,23 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                         </div>
                                     </div>
 
+                                    ${(() => {
+                                        const receipts = store.expenseForm.receipts || [];
+                                        return `<div>
+                                        <div class="flex justify-between items-center mb-2"><label class="block text-sm font-medium text-gray-700">Ảnh hóa đơn</label><span class="text-xs text-gray-400">${receipts.length}/${MAX_RECEIPTS_PER_EXPENSE}</span></div>
+                                        <div class="flex flex-wrap gap-2">
+                                            ${receipts.map(r => {
+                                                const src = r.data || store.receiptCache[r.id];
+                                                return `<div class="relative w-24 h-24 border border-gray-200 bg-gray-50 overflow-hidden">
+                                                    ${src && src !== 'error' ? `<img src="${escapeHtml(src)}" alt="Ảnh hóa đơn" class="w-full h-full object-cover" />` : `<div class="w-full h-full flex items-center justify-center text-gray-400 text-xs">${src === 'error' ? 'Lỗi ảnh' : '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>'}</div>`}
+                                                    <button type="button" data-action="remove-receipt" data-id="${escapeHtml(r.id)}" aria-label="Bỏ ảnh này" class="icon-btn absolute top-0 right-0 bg-black/50 text-white hover:bg-black/70"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                                </div>`;
+                                            }).join('')}
+                                            ${receipts.length < MAX_RECEIPTS_PER_EXPENSE ? `<label for="receipt-file" class="w-24 h-24 border-2 border-dashed border-gray-300 text-gray-500 hover:text-indigo-600 flex flex-col items-center justify-center gap-1 text-xs text-center cursor-pointer"><i data-lucide="camera" class="w-5 h-5"></i>Thêm ảnh</label><input type="file" id="receipt-file" accept="image/*" multiple class="sr-only" />` : ''}
+                                        </div>
+                                    </div>`;
+                                    })()}
+
                                     <div><div class="flex justify-between items-center mb-2"><label class="block text-sm font-medium text-gray-700">Thành viên tham gia</label><button data-action="toggle-select-all" class="text-xs text-indigo-600 font-medium hover:underline">${involvedIds.length === members.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button></div><div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">${members.map(m => { const isSelected = involvedIds.includes(m.id); return `<button type="button" data-action="toggle-involved" data-id="${escapeHtml(m.id)}" class="px-3 py-1.5 rounded-full text-sm font-medium border flex items-center gap-1 ${isSelected ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-gray-600 border-gray-200'}">${isSelected ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''} <span class="flex items-center gap-1"><i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-3 h-3"></i> ${escapeHtml(m.name)}</span>${m.childRate ? `<span class="text-[10px] text-amber-500 ml-0.5">(1/${m.childRate === 0.5 ? '2' : '4'})</span>` : ''}</button>`; }).join('')}</div></div>
                                 </div>
                             </div>
@@ -2007,6 +2058,35 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                             <div class="modal-actions flex justify-end gap-2 mt-6">
                                 <button data-action="close-advance-modal" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                                 <button data-action="save-advance" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const renderReceiptViewer = () => {
+            const v = store.receiptViewer;
+            if (!v) return '';
+            const trip = getActiveTrip();
+            const expense = trip && (trip.expenses || []).find(e => e.id === v.expenseId);
+            if (!expense) return '';
+            const ids = expense.receiptIds || [];
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="receipts-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-receipts"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-lg w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center gap-2 mb-4 border-b pb-2">
+                                <h3 id="receipts-title" class="text-lg font-bold text-gray-900 min-w-0 break-words">Hóa đơn: ${escapeHtml(expense.description)}</h3>
+                                <button data-action="close-receipts" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <div class="space-y-3">
+                                ${ids.length === 0 ? '<p class="text-sm text-gray-500">Khoản chi này không có ảnh.</p>' : ids.map((id, i) => {
+                                    const src = store.receiptCache[id];
+                                    if (!src) return `<div class="h-48 flex items-center justify-center bg-gray-50 border border-gray-200 text-gray-400"><i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i></div>`;
+                                    if (src === 'error') return `<div class="h-24 flex items-center justify-center bg-gray-50 border border-gray-200 text-sm text-gray-500">Không tải được ảnh ${i + 1}</div>`;
+                                    return `<img src="${escapeHtml(src)}" alt="Ảnh hóa đơn ${i + 1}" class="w-full h-auto border border-gray-200" />`;
+                                }).join('')}
                             </div>
                         </div>
                     </div>
@@ -2161,6 +2241,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             modals += renderAdvanceModal();
             modals += renderBankModal();
             modals += renderPayQrModal();
+            modals += renderReceiptViewer();
             modalContainer.innerHTML = modals;
 
             if (window.lucide) window.lucide.createIcons();
@@ -2221,6 +2302,8 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 store.shareModalOpen = false;
                 store.bankModal = null;
                 store.payQr = null;
+                store.receiptViewer = null;
+                store.receiptCache = {};
                 store.activeTripId = null;
                 store.linkTripId = null;
                 store.externalTrip = null;
@@ -2443,7 +2526,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 if (ok) showToast('Đã cập nhật loại thành viên', 'success');
             }
 
-            if (action === 'open-expense-modal') { store.expenseModalOpen = true; store.editingExpenseId = null; const trip = getActiveTrip(); store.expenseForm = { desc: '', amount: '', payerId: '', involvedIds: trip.members.map(m => m.id), icon: 'receipt' }; render(); setTimeout(() => document.getElementById('ex-desc')?.focus(), 50); }
+            if (action === 'open-expense-modal') { store.expenseModalOpen = true; store.editingExpenseId = null; const trip = getActiveTrip(); store.expenseForm = { desc: '', amount: '', payerId: '', involvedIds: trip.members.map(m => m.id), icon: 'receipt', receipts: [], removedReceiptIds: [] }; render(); setTimeout(() => document.getElementById('ex-desc')?.focus(), 50); }
             if (action === 'close-modal') { store.expenseModalOpen = false; render(); }
             if (action === 'edit-expense') {
                 const trip = getActiveTrip();
@@ -2455,11 +2538,41 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     amount: expense.amount,
                     payerId: expense.payerId,
                     involvedIds: expense.involvedMemberIds || trip.members.map(m => m.id),
-                    icon: expense.categoryIcon || 'receipt'
+                    icon: expense.categoryIcon || 'receipt',
+                    receipts: (expense.receiptIds || []).map(rid => ({ id: rid, isNew: false })),
+                    removedReceiptIds: []
                 };
                 render();
+                loadReceipts(expense.receiptIds);
             }
-            if (action === 'delete-expense') { if (await showConfirm("Xóa khoản chi này?", "Xóa khoản chi")) { const ok = await mutateTrip(store.activeTripId, (t) => ({ expenses: t.expenses.filter(e => e.id !== id) })); if (ok) showToast('Đã xóa khoản chi', 'success'); } }
+            if (action === 'remove-receipt') {
+                const f = store.expenseForm;
+                const r = (f.receipts || []).find(x => x.id === id);
+                if (!r) return;
+                f.receipts = f.receipts.filter(x => x.id !== id);
+                if (!r.isNew) f.removedReceiptIds = [...(f.removedReceiptIds || []), id];
+                render();
+            }
+            if (action === 'view-receipts') {
+                const expense = (getActiveTrip()?.expenses || []).find(e => e.id === id);
+                store.receiptViewer = { expenseId: id };
+                render();
+                loadReceipts(expense && expense.receiptIds);
+            }
+            if (action === 'close-receipts') { store.receiptViewer = null; render(); }
+            if (action === 'delete-expense') {
+                if (!(await showConfirm("Xóa khoản chi này?", "Xóa khoản chi"))) return;
+                const tripId = store.activeTripId;
+                let receiptIds = [];
+                const ok = await mutateTrip(tripId, (t) => {
+                    receiptIds = (t.expenses.find(e => e.id === id) || {}).receiptIds || [];
+                    return { expenses: t.expenses.filter(e => e.id !== id) };
+                });
+                if (ok) {
+                    await deleteReceiptDocs(tripId, receiptIds);
+                    showToast('Đã xóa khoản chi', 'success');
+                }
+            }
 
             if (action === 'toggle-involved') { const id = target.dataset.id; if (store.expenseForm.involvedIds.includes(id)) store.expenseForm.involvedIds = store.expenseForm.involvedIds.filter(i => i !== id); else store.expenseForm.involvedIds.push(id); render(); }
             if (action === 'toggle-select-all') { const trip = getActiveTrip(); store.expenseForm.involvedIds = store.expenseForm.involvedIds.length === trip.members.length ? [] : trip.members.map(m => m.id); render(); }
@@ -2543,12 +2656,26 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     payerId,
                     date: new Date().toISOString(),
                     involvedMemberIds: store.expenseForm.involvedIds,
-                    categoryIcon: store.expenseForm.icon
+                    categoryIcon: store.expenseForm.icon,
+                    receiptIds: (store.expenseForm.receipts || []).map(r => r.id)
                 };
                 const editingId = store.editingExpenseId;
                 const now = expenseData.date;
                 const wasEditing = !!editingId;
-                const ok = await mutateTrip(store.activeTripId, (t) => {
+                const tripId = store.activeTripId;
+                const newReceipts = (store.expenseForm.receipts || []).filter(r => r.isNew);
+                const removedReceiptIds = store.expenseForm.removedReceiptIds || [];
+                try {
+                    await Promise.all(newReceipts.map(r => setDoc(doc(db, TRIPS_COLLECTION, tripId, 'receipts', r.id),
+                        { expenseId: expenseData.id, data: r.data, createdBy: store.uid, createdAt: serverTimestamp() })));
+                } catch (err) {
+                    console.error(err);
+                    await deleteReceiptDocs(tripId, newReceipts.map(r => r.id));
+                    setBtnLoading(target, false);
+                    showToast('Không tải được ảnh hóa đơn. ' + (err.message || ''), 'error');
+                    return;
+                }
+                const ok = await mutateTrip(tripId, (t) => {
                     if (editingId && !t.expenses.some(e => e.id === editingId)) throw new MutationAbort('Khoản chi này vừa bị người khác xóa.');
                     return {
                         expenses: editingId
@@ -2557,11 +2684,13 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     };
                 });
                 if (ok) {
+                    await deleteReceiptDocs(tripId, removedReceiptIds);
                     store.expenseModalOpen = false;
                     store.editingExpenseId = null;
                     render();
                     showToast(wasEditing ? 'Đã cập nhật khoản chi' : 'Đã thêm khoản chi', 'success');
                 } else {
+                    await deleteReceiptDocs(tripId, newReceipts.map(r => r.id));
                     setBtnLoading(target, false);
                 }
             }
@@ -2618,6 +2747,24 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
         });
 
         document.addEventListener('change', async (e) => {
+            if (e.target.id === 'receipt-file') {
+                const files = [...(e.target.files || [])];
+                e.target.value = '';
+                const f = store.expenseForm;
+                if (!store.expenseModalOpen || !files.length) return;
+                const room = MAX_RECEIPTS_PER_EXPENSE - (f.receipts || []).length;
+                if (files.length > room) showToast(`Mỗi khoản chi tối đa ${MAX_RECEIPTS_PER_EXPENSE} ảnh; chỉ thêm ${Math.max(0, room)} ảnh đầu.`, 'error');
+                for (const file of files.slice(0, Math.max(0, room))) {
+                    let data = null;
+                    try { data = await compressReceipt(file); } catch (err) { console.warn(err); }
+                    if (!data) { showToast(`Không dùng được ảnh "${file.name}".`, 'error'); continue; }
+                    const rid = generateId() + generateId();
+                    store.receiptCache[rid] = data;
+                    f.receipts = [...(f.receipts || []), { id: rid, data, isNew: true }];
+                }
+                render();
+                return;
+            }
             if (e.target.id === 'bank-qr-file') {
                 const file = e.target.files && e.target.files[0];
                 e.target.value = ''; // allow picking the same image again
@@ -2764,6 +2911,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 else if (store.advanceModalOpen) { store.advanceModalOpen = false; render(); }
                 else if (store.bankModal) { store.bankModal = null; render(); }
                 else if (store.payQr) { store.payQr = null; render(); }
+                else if (store.receiptViewer) { store.receiptViewer = null; render(); }
             }
             if (e.key === 'Tab') {
                 const container = document.querySelector('#modal-container [role="dialog"]') || document.getElementById('confirm-overlay') || document.getElementById('prompt-overlay');

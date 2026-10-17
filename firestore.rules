@@ -83,6 +83,20 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
 
+      // Ảnh hóa đơn (data URL JPEG đã nén). Ai đọc được chuyến thì xem được ảnh; chỉ editor thêm/xóa.
+      match /receipts/{receiptId} {
+        allow get, list: if isSignedIn();
+        allow create: if isEditorOf(tripData(tripId))
+          && request.resource.data.keys().hasOnly(['expenseId', 'data', 'createdBy', 'createdAt'])
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.expenseId is string && request.resource.data.expenseId.size() <= 64
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.data is string
+          && request.resource.data.data.size() <= 450000
+          && request.resource.data.data.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$');
+        allow delete: if isEditorOf(tripData(tripId));
+      }
+
       // Số tài khoản ngân hàng: chỉ người có quyền sửa đọc/ghi được (người cầm link xem không thấy).
       match /bankAccounts/{memberId} {
         allow read, delete: if isEditorOf(tripData(tripId));
