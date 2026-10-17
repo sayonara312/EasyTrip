@@ -40,8 +40,7 @@ thật nằm ở Firestore Rules và giới hạn API key. Checklist khi deploy 
 2. **Deploy Firestore Rules**: `firebase deploy --only firestore:rules`.
 3. **Giới hạn API key**: Google Cloud Console → Credentials → *Application restriction* = **Websites**,
    chỉ thêm domain thật (ví dụ `<tên-github>.github.io`).
-4. **App Check**: bật reCAPTCHA v3 (Firebase Console → App Check) để chặn request ngoài app.
-5. **KHÔNG** dán Gemini API key trực tiếp vào `index.html`. Key nằm trong JS tĩnh sẽ bị bot
+4. **KHÔNG** dán Gemini API key trực tiếp vào `index.html`. Key nằm trong JS tĩnh sẽ bị bot
    GitHub lấy ngay. Muốn dùng AI khi publish, hãy gọi Gemini qua backend trung gian
    (Cloud Functions / proxy), hoặc để người dùng tự nhập key và lưu trong `localStorage`.
-6. `*.local` và file `.env*` đã được `.gitignore`, không commit key vào git.
+5. `*.local` và file `.env*` đã được `.gitignore`, không commit key vào git.

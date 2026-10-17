@@ -436,8 +436,6 @@
             appId: "1:692521389570:web:08a133c46013f7bc03611b"
         };
         const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.8.0';
-        // reCAPTCHA v3 site key đăng ký trong Firebase Console → App Check. Để trống = tắt App Check.
-        const APP_CHECK_SITE_KEY = '';
 
         let db = null;
         let auth = null;
@@ -460,12 +458,6 @@
                     ({ getAuth, signInAnonymously, onAuthStateChanged } = fbAuth);
 
                     firebaseApp = initializeApp(firebaseConfig);
-                    if (APP_CHECK_SITE_KEY) {
-                        // On localhost App Check prints a debug token to the console; register it in Console → App Check → Manage debug tokens.
-                        if (['localhost', '127.0.0.1'].includes(window.location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-                        const { initializeAppCheck, ReCaptchaV3Provider } = await import(`${FIREBASE_SDK}/firebase-app-check.js`);
-                        initializeAppCheck(firebaseApp, { provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
-                    }
                     db = getFirestore(firebaseApp);
                     auth = getAuth(firebaseApp);
                 } catch (e) {
@@ -1253,7 +1245,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 });
 
                 const list = expenses.length === 0
-                    ? `<div class="text-center py-12 text-gray-400"><i data-lucide="receipt" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p>Chưa có khoản chi nào.</p></div>`
+                    ? `<div class="text-center py-12 text-gray-400"><i data-lucide="receipt" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p>Chưa có khoản chi nào.</p>${members.length === 0 && !store.isReadOnly ? `<p class="text-sm mt-1">Thêm thành viên trước để ghi khoản chi.</p><button data-action="switch-tab" data-tab="members" class="box-btn mt-4 inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"><i data-lucide="user-plus" class="w-4 h-4"></i> Thêm thành viên</button>` : ''}</div>`
                     : filtered.length === 0
                         ? `<div class="text-center py-10 text-gray-400"><i data-lucide="search-x" class="w-10 h-10 mx-auto mb-2 opacity-30"></i><p>Không tìm thấy khoản chi phù hợp.</p></div>`
                         : order.map(key => `
