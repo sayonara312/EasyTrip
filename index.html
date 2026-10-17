@@ -2381,7 +2381,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
         // --- EVENT HANDLERS ---
         document.addEventListener('click', async (e) => {
             const target = e.target.closest('[data-action]');
-            if (e.target.tagName === 'A' || e.target.closest('a')) e.preventDefault();
+            // Links are app actions, except download links (the transfer QR "Tải ảnh" button) which must keep their default.
+            const link = e.target.closest('a');
+            if (link && !link.hasAttribute('download')) e.preventDefault();
             if (!target) return;
             if (target.tagName === 'BUTTON' && target.type !== 'submit') e.preventDefault();
 
