@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Chia Tiền Đi Chơi (TripSplit AI)</title>
 
     <!-- Tailwind CSS -->
@@ -356,6 +356,76 @@
         .shadow-right {
             box-shadow: 4px 0 4px -2px rgba(0, 0, 0, 0.05);
         }
+
+        /* ===== MOBILE ===== */
+        /* Icon buttons: comfortable touch target */
+        .icon-btn {
+            min-width: 40px;
+            min-height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Leave room for the floating theme button and the iPhone home indicator */
+        #app {
+            padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+        }
+
+        @media (max-width: 639px) {
+            /* iOS zooms into inputs smaller than 16px */
+            input,
+            select,
+            textarea {
+                font-size: 16px !important;
+            }
+
+            /* Modals become bottom sheets */
+            .modal-wrap {
+                align-items: flex-end !important;
+                padding: 0 !important;
+                min-height: 100% !important;
+            }
+
+            /* Small chips and text buttons get a full-height touch target */
+            [data-action="quick-amount"],
+            [data-action="toggle-involved"],
+            [data-action="toggle-select-all"],
+            [data-action="set-child-rate"],
+            [data-action="open-advance-modal"],
+            [data-action="select-icon"],
+            [data-action="select-member-icon"],
+            #modal-container button[data-action^="close-"] {
+                min-height: 40px;
+            }
+
+            [data-action="select-icon"],
+            [data-action="select-member-icon"],
+            #modal-container button[data-action^="close-"] {
+                min-width: 40px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .modal-panel {
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: 92vh;
+                overflow-y: auto;
+                margin: 0 !important;
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+
+            .modal-actions {
+                position: sticky;
+                bottom: 0;
+                z-index: 1;
+                background: var(--c-surface);
+                padding-top: 0.75rem;
+                padding-bottom: 0.75rem;
+            }
+        }
     </style>
 </head>
 
@@ -389,11 +459,11 @@
     <div id="modal-container"></div>
 
     <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 items-end"></div>
+    <div id="toast-container" class="fixed top-3 left-3 right-3 sm:top-4 sm:left-auto sm:right-4 z-[100] flex flex-col gap-2 items-stretch sm:items-end" style="top: max(0.75rem, env(safe-area-inset-top));"></div>
 
     <!-- Theme Switcher -->
-    <div id="theme-switcher" class="fixed bottom-4 left-4 z-[80]">
-        <div id="theme-menu" class="hidden absolute bottom-14 left-0 flex flex-col gap-2 bg-[var(--c-surface)] p-3 border-2 border-[var(--c-ink)] shadow-[3px_3px_0_0_var(--c-ink)]">
+    <div id="theme-switcher" class="fixed right-3 sm:right-4 z-[80]" style="bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+        <div id="theme-menu" class="hidden absolute bottom-12 right-0 flex flex-col gap-2 bg-[var(--c-surface)] p-3 border-2 border-[var(--c-ink)] shadow-[3px_3px_0_0_var(--c-ink)]">
             <p class="text-[10px] font-bold tracking-widest text-[var(--c-muted)] mb-1">BỘ MÀU</p>
             <button type="button" data-action="set-theme" data-theme="forest" class="flex items-center gap-2 border-2 border-[var(--c-border-strong)] hover:border-[var(--c-ink)] px-2 py-1.5 text-left">
                 <span class="flex gap-0.5"><span class="w-3 h-3 border border-black/20" style="background:#6F826A"></span><span class="w-3 h-3 border border-black/20" style="background:#BF9264"></span><span class="w-3 h-3 border border-black/20" style="background:#BBD8A3"></span><span class="w-3 h-3 border border-black/20" style="background:#F0F1C5"></span></span>
@@ -412,7 +482,7 @@
                 <span class="text-xs font-semibold">Đất nung</span>
             </button>
         </div>
-        <button type="button" data-action="toggle-theme-menu" aria-label="Đổi bộ màu" class="box-btn inline-flex items-center justify-center w-11 h-11 bg-[var(--c-primary)] text-[var(--c-primary-fg)]">
+        <button type="button" data-action="toggle-theme-menu" aria-label="Đổi bộ màu" class="box-btn inline-flex items-center justify-center w-10 h-10 bg-[var(--c-primary)] text-[var(--c-primary-fg)]">
             <i data-lucide="palette" class="w-5 h-5"></i>
         </button>
     </div>
@@ -520,9 +590,15 @@
                     <stop offset="100%" stop-color="hsl(${(hue + 40) % 360},55%,45%)"/>
                 </linearGradient></defs>
                 <rect width="100%" height="100%" fill="url(#g)"/>
-                <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-size="28" font-family="Arial,sans-serif" font-weight="bold">${seed}</text>
             </svg>`;
             return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        };
+
+        // Older generated covers had the trip name baked into the SVG, which doubles up with the title overlay.
+        const coverSrc = (url) => {
+            const prefix = 'data:image/svg+xml;charset=utf-8,';
+            if (typeof url !== 'string' || !url.startsWith(prefix) || !url.includes('%3Ctext')) return url;
+            try { return prefix + encodeURIComponent(decodeURIComponent(url.slice(prefix.length)).replace(/<text[\s\S]*?<\/text>/g, '')); } catch (e) { return url; }
         };
 
         const FALLBACK_IMAGE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
@@ -563,7 +639,7 @@
             const styles = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-slate-800' };
             const icons = { success: 'check-circle-2', error: 'alert-circle', info: 'info' };
             const toast = document.createElement('div');
-            toast.className = `flex items-center gap-2 text-white px-4 py-3 rounded-lg shadow-lg max-w-xs animate-fade-in-down ${styles[type] || styles.info}`;
+            toast.className = `flex items-center gap-2 text-white px-4 py-3 rounded-lg shadow-lg sm:max-w-xs animate-fade-in-down ${styles[type] || styles.info}`;
             toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 flex-shrink-0"></i><span class="text-sm font-medium">${escapeHtml(message)}</span>`;
             container.appendChild(toast);
             if (window.lucide) window.lucide.createIcons();
@@ -732,6 +808,9 @@
             const overlayOpen = !!document.getElementById('confirm-overlay') || !!document.getElementById('prompt-overlay');
             const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || store.shareModalOpen || store.advanceModalOpen || overlayOpen;
             document.body.style.overflow = modalOpen ? 'hidden' : '';
+            // The floating theme button would cover the sticky Save button of bottom sheets
+            const themeSwitcher = document.getElementById('theme-switcher');
+            if (themeSwitcher) themeSwitcher.style.display = modalOpen ? 'none' : '';
         };
 
         // --- BALANCE CALCULATION ---
@@ -1137,7 +1216,7 @@
                 : store.trips.map(trip => `
                     <div class="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-200 flex flex-col h-full">
                         <div class="relative h-40 overflow-hidden cursor-pointer" data-action="select-trip" data-id="${escapeHtml(trip.id)}">
-                            <img src="${escapeHtml(trip.coverImage)}" alt="${escapeHtml(trip.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
+                            <img src="${escapeHtml(coverSrc(trip.coverImage))}" alt="${escapeHtml(trip.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                             <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                             <h3 class="absolute bottom-3 left-4 right-4 text-xl font-bold text-white shadow-black/50 drop-shadow-md truncate">${escapeHtml(trip.name)}</h3>
                         </div>
@@ -1216,7 +1295,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 const count = e.involvedMemberIds?.length || members.length;
                 const iconName = e.categoryIcon || 'receipt';
                 return `
-                    <div class="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors group">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-3 sm:p-4 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors group">
                         <div class="flex items-start gap-3 flex-1 min-w-0 ${!store.isReadOnly ? 'cursor-pointer' : ''}" data-action="${!store.isReadOnly ? 'edit-expense' : ''}" data-id="${escapeHtml(e.id)}">
                             <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600 mt-1 flex-shrink-0"><i data-lucide="${escapeHtml(iconName)}" class="w-5 h-5"></i></div>
                             <div class="min-w-0">
@@ -1224,7 +1303,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <p class="text-sm text-gray-500"><span class="font-medium text-gray-700">${escapeHtml(payer)}</span> đã trả • <span class="text-gray-400 italic ml-1">${count === members.length ? 'Tất cả' : `Cho ${count} người`}</span></p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-3 flex-shrink-0"><span class="font-bold text-gray-900 whitespace-nowrap">${formatCurrency(e.amount)}</span>${!store.isReadOnly ? `<button data-action="edit-expense" data-id="${escapeHtml(e.id)}" aria-label="Sửa khoản chi" class="text-gray-400 hover:text-indigo-500 p-2"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button data-action="delete-expense" data-id="${escapeHtml(e.id)}" aria-label="Xóa khoản chi" class="text-gray-400 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}</div>
+                        <div class="flex items-center justify-between sm:justify-end gap-1 sm:gap-3 flex-shrink-0 pl-12 sm:pl-0"><span class="font-bold text-gray-900 whitespace-nowrap">${formatCurrency(e.amount)}</span>${!store.isReadOnly ? `<span class="flex items-center"><button data-action="edit-expense" data-id="${escapeHtml(e.id)}" aria-label="Sửa khoản chi" class="icon-btn text-gray-400 hover:text-indigo-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button data-action="delete-expense" data-id="${escapeHtml(e.id)}" aria-label="Xóa khoản chi" class="icon-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></span>` : ''}</div>
                     </div>`;
             };
 
@@ -1292,7 +1371,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
 
                     if (amount > 0) {
-                        suggestions.push({ from: debtor.name, to: creditor.name, amount });
+                        suggestions.push({ from: debtor.name, to: creditor.name, fromId: debtor.id, toId: creditor.id, amount });
                     }
 
                     debtor.balance += amount;
@@ -1327,13 +1406,15 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                         </div>
                         <div class="divide-y divide-gray-100">
                             ${suggestions.map(s => `
-                            <div class="px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-gray-50">
-                                <div class="flex items-center gap-2 min-w-0 text-sm">
-                                    <span class="font-bold text-red-600 truncate" title="${escapeHtml(s.from)}">${escapeHtml(s.from)}</span>
+                            <div class="px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 hover:bg-gray-50">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 text-sm">
+                                    <span class="font-bold text-red-600 break-words">${escapeHtml(s.from)}</span>
                                     <i data-lucide="arrow-right" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
-                                    <span class="font-bold text-green-600 truncate" title="${escapeHtml(s.to)}">${escapeHtml(s.to)}</span>
+                                    <span class="font-bold text-green-600 break-words">${escapeHtml(s.to)}</span>
                                 </div>
-                                <div class="font-bold text-gray-800 whitespace-nowrap flex-shrink-0">${formatCurrency(s.amount)}</div>
+                                <div class="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
+                                    <span class="font-bold text-gray-800 whitespace-nowrap">${formatCurrency(s.amount)}</span>
+                                </div>
                             </div>
                             `).join('')}
                         </div>
@@ -1418,11 +1499,11 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
                 return `
                     <div class="space-y-6 animate-fade-in-up">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200"><p class="text-blue-600 text-xs font-bold uppercase">Tổng Chi Phí</p><p class="text-2xl font-bold text-blue-900 mt-1">${formatCurrency(totalSpent)}</p></div>
-                            <div class="bg-purple-50 p-4 rounded-xl border border-purple-200"><p class="text-purple-600 text-xs font-bold uppercase">Bình Quân/Người</p><p class="text-2xl font-bold text-purple-900 mt-1">${formatCurrency(members.length ? totalSpent / members.length : 0)}</p></div>
-                            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200"><p class="text-amber-600 text-xs font-bold uppercase">Top Chi Tiền</p><p class="text-xl font-bold text-amber-900 mt-1 truncate">${topSpender && topSpender.paid > 0 ? escapeHtml(topSpender.name) : '---'}</p></div>
-                            <div class="bg-green-50 p-4 rounded-xl border border-green-200"><p class="text-green-600 text-xs font-bold uppercase">Top Giao Dịch</p><p class="text-xl font-bold text-green-900 mt-1 truncate">${mostActive && mostActive.txCount > 0 ? escapeHtml(mostActive.name) : '---'}</p></div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+                            <div class="bg-blue-50 p-3 sm:p-4 rounded-xl border border-blue-200"><p class="text-blue-600 text-xs font-bold uppercase">Tổng Chi Phí</p><p class="text-lg sm:text-2xl font-bold text-blue-900 mt-1 break-words">${formatCurrency(totalSpent)}</p></div>
+                            <div class="bg-purple-50 p-3 sm:p-4 rounded-xl border border-purple-200"><p class="text-purple-600 text-xs font-bold uppercase">Bình Quân/Người</p><p class="text-lg sm:text-2xl font-bold text-purple-900 mt-1 break-words">${formatCurrency(members.length ? totalSpent / members.length : 0)}</p></div>
+                            <div class="bg-amber-50 p-3 sm:p-4 rounded-xl border border-amber-200"><p class="text-amber-600 text-xs font-bold uppercase">Top Chi Tiền</p><p class="text-xl font-bold text-amber-900 mt-1 truncate">${topSpender && topSpender.paid > 0 ? escapeHtml(topSpender.name) : '---'}</p></div>
+                            <div class="bg-green-50 p-3 sm:p-4 rounded-xl border border-green-200"><p class="text-green-600 text-xs font-bold uppercase">Top Giao Dịch</p><p class="text-xl font-bold text-green-900 mt-1 truncate">${mostActive && mostActive.txCount > 0 ? escapeHtml(mostActive.name) : '---'}</p></div>
                         </div>
 
                         ${matrixHtml}
@@ -1465,7 +1546,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                     </div>
                                     <div class="flex items-center gap-2 flex-shrink-0">
                                         <span class="font-bold text-gray-800 whitespace-nowrap">${formatCurrency(a.amount || 0)}</span>
-                                        ${!store.isReadOnly ? `<button data-action="delete-advance" data-id="${escapeHtml(a.id)}" aria-label="Xóa khoản ứng" class="text-gray-400 hover:text-red-500 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                                        ${!store.isReadOnly ? `<button data-action="delete-advance" data-id="${escapeHtml(a.id)}" aria-label="Xóa khoản ứng" class="icon-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                                     </div>
                                 </div>`;
                             }).join('')}
@@ -1476,7 +1557,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const renderMembersTab = () => `
                 <div>
                     ${!store.isReadOnly ? `
-                    <form data-action="add-member" class="mb-6 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <form data-action="add-member" class="mb-6 bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
                         <h3 class="text-sm font-medium text-gray-700 mb-3">Thêm thành viên mới</h3>
                         <div class="flex flex-col gap-4">
                             <div>
@@ -1507,9 +1588,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                     </button>
                                 </div>
                             </div>
-                            <div class="flex gap-2">
-                                <input type="text" id="new-member-input" value="${escapeHtml(store.newMemberName)}" placeholder="Tên thành viên..." class="flex-1 rounded-md border border-gray-300 p-2 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                <button type="submit" class="box-btn bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2">
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <input type="text" id="new-member-input" value="${escapeHtml(store.newMemberName)}" placeholder="Tên thành viên..." class="flex-1 min-w-0 w-full rounded-md border border-gray-300 p-2 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                <button type="submit" class="box-btn bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
                                     <i data-lucide="plus" class="w-4 h-4"></i> Thêm
                                 </button>
                             </div>
@@ -1523,27 +1604,27 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                         ${members.map(m => {
                             const st = memberStats.find(x => x.id === m.id) || {};
                             return `
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-indigo-600">
+                        <div class="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                <div class="w-10 h-10 flex-shrink-0 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-indigo-600">
                                     <i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-5 h-5"></i>
                                 </div>
-                                <div class="flex flex-col">
-                                    <span class="font-medium">${escapeHtml(m.name)}</span>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="font-medium truncate" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</span>
                                     ${m.childRate ? `<span class="text-xs text-amber-600 font-medium">Trẻ em (1/${m.childRate === 0.5 ? '2' : '4'})</span>` : ''}
                                     ${st.advanceGiven || st.advanceHeld ? `<span class="text-xs text-gray-500">${st.advanceGiven ? `Đã ứng: ${formatCurrency(st.advanceGiven)}` : ''}${st.advanceGiven && st.advanceHeld ? ' · ' : ''}${st.advanceHeld ? `Đang giữ: ${formatCurrency(st.advanceHeld)}` : ''}</span>` : ''}
                                 </div>
                             </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-1 flex-shrink-0 ml-auto">
                                 ${store.editingChildMemberId === m.id ? `
-                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="" class="px-2 py-1 rounded text-xs font-medium border ${!m.childRate ? 'bg-indigo-100 border-indigo-500 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">Lớn</button>
-                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="0.5" class="px-2 py-1 rounded text-xs font-medium border ${m.childRate === 0.5 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/2</button>
-                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="0.25" class="px-2 py-1 rounded text-xs font-medium border ${m.childRate === 0.25 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/4</button>
-                                    <button data-action="cancel-edit-child" class="text-gray-400 hover:text-gray-600 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="" class="min-h-[40px] px-2.5 rounded text-xs font-medium border ${!m.childRate ? 'bg-indigo-100 border-indigo-500 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">Lớn</button>
+                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="0.5" class="min-h-[40px] px-2.5 rounded text-xs font-medium border ${m.childRate === 0.5 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/2</button>
+                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="0.25" class="min-h-[40px] px-2.5 rounded text-xs font-medium border ${m.childRate === 0.25 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/4</button>
+                                    <button data-action="cancel-edit-child" aria-label="Hủy" class="icon-btn text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-4 h-4"></i></button>
                                 ` : `
-                                    ${!store.isReadOnly ? `<button data-action="edit-child-rate" data-id="${escapeHtml(m.id)}" class="text-gray-400 hover:text-indigo-500 p-1 rounded-full hover:bg-indigo-50 transition-colors" title="Sửa loại thành viên"><i data-lucide="edit-2" class="w-4 h-4"></i></button>` : ''}
-                                    ${!store.isReadOnly ? `<button data-action="open-advance-modal" data-id="${escapeHtml(m.id)}" class="text-indigo-600 hover:text-indigo-800 p-2 rounded-md text-sm">Ứng tiền</button>` : ''}
-                                    ${!store.isReadOnly ? `<button data-action="remove-member" data-id="${escapeHtml(m.id)}" class="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="edit-child-rate" data-id="${escapeHtml(m.id)}" class="icon-btn text-gray-400 hover:text-indigo-500 rounded-full hover:bg-indigo-50 transition-colors" title="Sửa loại thành viên" aria-label="Sửa loại thành viên"><i data-lucide="edit-2" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="open-advance-modal" data-id="${escapeHtml(m.id)}" class="icon-btn text-indigo-600 hover:text-indigo-800 rounded-md" title="Ứng tiền" aria-label="Ứng tiền"><i data-lucide="wallet" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="remove-member" data-id="${escapeHtml(m.id)}" aria-label="Xóa thành viên" class="icon-btn text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                                 `}
                             </div>
                         </div>`;
@@ -1558,34 +1639,33 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             else if (store.activeTab === 'report') content = renderReportTab();
             else if (store.activeTab === 'members') content = renderMembersTab();
 
-            const tabClass = (tab) => `flex-1 py-4 px-4 text-sm font-medium text-center border-b-2 whitespace-nowrap ${store.activeTab === tab ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`;
+            const tabClass = (tab) => `py-2.5 sm:py-4 px-1 sm:px-4 text-[11px] sm:text-sm font-medium text-center border-b-2 whitespace-nowrap ${store.activeTab === tab ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`;
 
             return `
-                <div class="container mx-auto px-4 py-6 max-w-4xl animate-fade-in-down">
+                <div class="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-4xl animate-fade-in-down">
                     ${store.isReadOnly ? `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-2 text-blue-700"><i data-lucide="lock" class="w-4 h-4 flex-shrink-0"></i><span class="text-sm font-medium">${isLegacyTrip(trip) ? 'Chuyến đi này chưa có chủ.' : 'Bạn đang xem. Xin link sửa từ người tạo để chỉnh sửa.'}</span></div>${isLegacyTrip(trip) && store.uid ? `<button data-action="claim-trip" class="bg-white text-blue-600 border border-blue-200 px-3 py-1 rounded text-xs font-medium hover:bg-blue-50 flex items-center gap-1 whitespace-nowrap"><i data-lucide="key-round" class="w-3 h-3"></i> Nhận quyền sở hữu</button>` : ''}</div>` : ''}
-                    <div class="mb-6">
-                        <button data-action="back-to-list" class="text-gray-500 hover:text-indigo-600 flex items-center mb-4"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Quay lại</button>
+                    <div class="mb-3 sm:mb-4">
+                        <button data-action="back-to-list" class="text-gray-500 hover:text-indigo-600 flex items-center mb-3 sm:mb-4 min-h-[40px]"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Quay lại</button>
                         <div class="bg-white rounded-2xl shadow-md overflow-hidden relative group">
-                            <div class="h-48 w-full relative">
-                                <img src="${escapeHtml(trip.coverImage)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
-                                <div class="absolute inset-0 bg-black/30 flex items-end p-6">
-                                    <div class="min-w-0"><h1 class="text-3xl font-bold text-white mb-1 break-words">${escapeHtml(trip.name)}</h1><p class="text-white/90 text-sm flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> ${members.length} thành viên • Tổng chi: <span class="font-bold text-green-300">${formatCurrency(totalSpent)}</span></p></div>
+                            <div class="relative w-full min-h-[9rem] sm:min-h-[12rem] flex flex-col">
+                                <img src="${escapeHtml(coverSrc(trip.coverImage))}" class="absolute inset-0 w-full h-full object-cover" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
+                                <div class="absolute inset-0 bg-black/30"></div>
+                                <div class="relative flex justify-end gap-1.5 sm:gap-2 p-2 sm:p-4">
+                                     ${!store.isReadOnly ? `<button data-action="open-edit-trip" title="Sửa chuyến đi" aria-label="Sửa chuyến đi" class="icon-btn bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="pencil" class="w-5 h-5"></i></button>` : ''}
+                                     ${!store.isReadOnly ? `<button data-action="open-image-selector" data-mode="update" title="Đổi ảnh bìa" aria-label="Đổi ảnh bìa" class="icon-btn bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="image" class="w-5 h-5"></i></button>` : ''}
+                                     <button data-action="share-trip" title="Chia sẻ" aria-label="Chia sẻ" class="icon-btn bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="share-2" class="w-5 h-5"></i></button>
                                 </div>
-                                <div class="absolute top-4 right-4 flex gap-2">
-                                     ${!store.isReadOnly ? `<button data-action="open-edit-trip" title="Sửa chuyến đi" aria-label="Sửa chuyến đi" class="bg-white/20 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="pencil" class="w-5 h-5"></i></button>` : ''}
-                                     ${!store.isReadOnly ? `<button data-action="open-image-selector" data-mode="update" title="Đổi ảnh bìa" aria-label="Đổi ảnh bìa" class="bg-white/20 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="image" class="w-5 h-5"></i></button>` : ''}
-                                     <button data-action="share-trip" title="Chia sẻ" aria-label="Chia sẻ" class="bg-white/20 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="share-2" class="w-5 h-5"></i></button>
-                                </div>
-                            </div>
-                            <div class="flex border-b border-gray-200 overflow-x-auto">
-                                <button data-action="switch-tab" data-tab="expenses" class="${tabClass('expenses')}"><div class="flex items-center justify-center gap-2"><i data-lucide="receipt" class="w-4 h-4"></i> Chi Tiêu</div></button>
-                                <button data-action="switch-tab" data-tab="balances" class="${tabClass('balances')}"><div class="flex items-center justify-center gap-2"><i data-lucide="wallet" class="w-4 h-4"></i> Công Nợ</div></button>
-                                <button data-action="switch-tab" data-tab="report" class="${tabClass('report')}"><div class="flex items-center justify-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Tổng kết</div></button>
-                                <button data-action="switch-tab" data-tab="members" class="${tabClass('members')}"><div class="flex items-center justify-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> Thành Viên</div></button>
+                                <div class="relative mt-auto px-4 pb-4 sm:px-6 sm:pb-6"><div class="min-w-0"><h1 class="text-2xl sm:text-3xl font-bold text-white mb-1 break-words line-clamp-2">${escapeHtml(trip.name)}</h1><p class="text-white/90 text-sm flex flex-wrap items-center gap-x-2 gap-y-0.5"><span class="flex items-center gap-1.5"><i data-lucide="users" class="w-4 h-4"></i> ${members.length} thành viên</span><span>Tổng chi: <span class="font-bold text-green-300">${formatCurrency(totalSpent)}</span></span></p></div></div>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[400px]">${content}</div>
+                    <div class="sticky top-0 z-40 grid grid-cols-4 bg-white border border-gray-200 shadow-sm mb-3 sm:mb-4">
+                        <button data-action="switch-tab" data-tab="expenses" class="${tabClass('expenses')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="receipt" class="w-4 h-4"></i> Chi Tiêu</div></button>
+                        <button data-action="switch-tab" data-tab="balances" class="${tabClass('balances')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="wallet" class="w-4 h-4"></i> Công Nợ</div></button>
+                        <button data-action="switch-tab" data-tab="report" class="${tabClass('report')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Tổng kết</div></button>
+                        <button data-action="switch-tab" data-tab="members" class="${tabClass('members')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="users" class="w-4 h-4"></i> Thành Viên</div></button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 min-h-[400px]">${content}</div>
                 </div>`;
         };
 
@@ -1599,10 +1679,10 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
             return `
                 <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="modal-wrap flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" data-action="close-modal"></div>
                         <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+                        <div class="modal-panel inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
                             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <div class="flex justify-between items-center mb-4 border-b pb-2"><h3 id="modal-title" class="text-lg leading-6 font-medium text-gray-900">${store.editingExpenseId ? 'Sửa Khoản Chi' : 'Thêm Khoản Chi Mới'}</h3><button data-action="close-modal" aria-label="Đóng" class="text-gray-400 hover:text-gray-500"><i data-lucide="x" class="w-6 h-6"></i></button></div>
                                 <div class="space-y-4">
@@ -1634,7 +1714,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 </div>
                             </div>
                             <p id="ex-form-error" class="hidden px-4 sm:px-6 pt-3 text-sm text-red-600 font-medium"></p>
-                            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"><button type="button" data-action="save-expense" class="box-btn w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Lưu</button><button type="button" data-action="close-modal" class="box-btn-ghost mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Hủy</button></div>
+                            <div class="modal-actions bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"><button type="button" data-action="save-expense" class="box-btn w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Lưu</button><button type="button" data-action="close-modal" class="box-btn-ghost mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Hủy</button></div>
                         </div>
                     </div>
                 </div>`;
@@ -1644,9 +1724,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             if (!store.imageSelectionModalOpen) return '';
             return `
                 <div class="fixed inset-0 z-[60] overflow-y-auto" role="dialog" aria-modal="true">
-                    <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-image-selector"></div>
-                        <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-4 sm:p-6">
                             <h3 class="text-lg font-bold text-gray-900 mb-4">Chọn Ảnh Bìa</h3>
                             
                             <div class="mb-6">
@@ -1666,7 +1746,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <input type="file" id="custom-image-upload" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
                             </div>
 
-                            <div class="flex justify-end gap-2">
+                            <div class="modal-actions flex justify-end gap-2">
                                 <button data-action="close-image-selector" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">Hủy</button>
                                 <button data-action="confirm-image-selection" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Chọn ảnh này</button>
                             </div>
@@ -1683,9 +1763,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const startDate = store.editTripForm.startDate ? String(store.editTripForm.startDate).slice(0, 10) : '';
             return `
                 <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="edit-trip-title">
-                    <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-edit-trip"></div>
-                        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in-up">
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
                             <div class="flex justify-between items-center mb-4 border-b pb-2">
                                 <h3 id="edit-trip-title" class="text-lg font-bold text-gray-900">Sửa chuyến đi</h3>
                                 <button data-action="close-edit-trip" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
@@ -1701,7 +1781,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 </div>
                                 <p id="edit-trip-error" class="hidden text-sm text-red-600 font-medium"></p>
                             </div>
-                            <div class="flex justify-end gap-2 mt-6">
+                            <div class="modal-actions flex justify-end gap-2 mt-6">
                                 <button data-action="close-edit-trip" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                                 <button data-action="save-edit-trip" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
                             </div>
@@ -1720,9 +1800,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 .map(m => `<option value="${escapeHtml(m.id)}" ${m.id === selected ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('');
             return `
                 <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="advance-title">
-                    <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-advance-modal"></div>
-                        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in-up">
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
                             <div class="flex justify-between items-center mb-4 border-b pb-2">
                                 <h3 id="advance-title" class="text-lg font-bold text-gray-900">Ứng tiền</h3>
                                 <button data-action="close-advance-modal" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
@@ -1743,7 +1823,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <p class="text-xs text-gray-500">Người đưa được tính là đã góp tiền; người nhận đang giữ khoản tiền này cho cả nhóm.</p>
                                 <p id="adv-error" class="hidden text-sm text-red-600 font-medium"></p>
                             </div>
-                            <div class="flex justify-end gap-2 mt-6">
+                            <div class="modal-actions flex justify-end gap-2 mt-6">
                                 <button data-action="close-advance-modal" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                                 <button data-action="save-advance" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
                             </div>
@@ -1758,9 +1838,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             if (!trip) return '';
             return `
                 <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="share-title">
-                    <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-share"></div>
-                        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in-up">
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
                             <div class="flex justify-between items-center mb-4 border-b pb-2">
                                 <h3 id="share-title" class="text-lg font-bold text-gray-900">Chia sẻ chuyến đi</h3>
                                 <button data-action="close-share" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
