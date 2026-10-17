@@ -39,7 +39,8 @@ Làm xong đánh dấu `[x]`.
 - [ ] **Application restrictions** = **Websites**, thêm:
   - `https://easytrip-55faf.web.app/*`
   - `https://easytrip-55faf.firebaseapp.com/*`
-  - `https://easytrip-55faf--*.web.app/*` (link preview channel)
+  - Link preview channel đang dùng, ví dụ `https://easytrip-55faf--test-hgc7szgg.web.app/*`
+    (Google không cho `*` ở giữa tên miền; mỗi channel mới phải thêm địa chỉ của nó)
   - `http://localhost:8000/*` (chạy local bằng `Start.bat`)
 - [ ] **API restrictions** = **Restrict key**, chỉ tick: Identity Toolkit API, Token Service API, Cloud Firestore API, Firebase App Check API
 - [ ] Save, đợi ~5 phút rồi mở app kiểm tra vẫn tạo được chuyến đi
