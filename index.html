@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Chia Tiền Đi Chơi (TripSplit AI)</title>
 
     <!-- Tailwind CSS -->
@@ -49,21 +49,10 @@
     </script>
 
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@1.50.0/dist/umd/lucide.min.js"></script>
+    <!-- QR codes are rendered locally; no data leaves the page -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 
-    <!-- Import Map for Modules -->
-    <script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://esm.sh/@google/genai",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1"
-  }
-}
-</script>
 
     <style>
         /* ===== THEME PALETTES ===== */
@@ -369,6 +358,76 @@
         .shadow-right {
             box-shadow: 4px 0 4px -2px rgba(0, 0, 0, 0.05);
         }
+
+        /* ===== MOBILE ===== */
+        /* Icon buttons: comfortable touch target */
+        .icon-btn {
+            min-width: 40px;
+            min-height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Leave room for the floating theme button and the iPhone home indicator */
+        #app {
+            padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+        }
+
+        @media (max-width: 639px) {
+            /* iOS zooms into inputs smaller than 16px */
+            input,
+            select,
+            textarea {
+                font-size: 16px !important;
+            }
+
+            /* Modals become bottom sheets */
+            .modal-wrap {
+                align-items: flex-end !important;
+                padding: 0 !important;
+                min-height: 100% !important;
+            }
+
+            /* Small chips and text buttons get a full-height touch target */
+            [data-action="quick-amount"],
+            [data-action="toggle-involved"],
+            [data-action="toggle-select-all"],
+            [data-action="set-child-rate"],
+            [data-action="open-advance-modal"],
+            [data-action="select-icon"],
+            [data-action="select-member-icon"],
+            #modal-container button[data-action^="close-"] {
+                min-height: 40px;
+            }
+
+            [data-action="select-icon"],
+            [data-action="select-member-icon"],
+            #modal-container button[data-action^="close-"] {
+                min-width: 40px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .modal-panel {
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: 92vh;
+                overflow-y: auto;
+                margin: 0 !important;
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+
+            .modal-actions {
+                position: sticky;
+                bottom: 0;
+                z-index: 1;
+                background: var(--c-surface);
+                padding-top: 0.75rem;
+                padding-bottom: 0.75rem;
+            }
+        }
     </style>
 </head>
 
@@ -402,11 +461,11 @@
     <div id="modal-container"></div>
 
     <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 items-end"></div>
+    <div id="toast-container" class="fixed top-3 left-3 right-3 sm:top-4 sm:left-auto sm:right-4 z-[100] flex flex-col gap-2 items-stretch sm:items-end" style="top: max(0.75rem, env(safe-area-inset-top));"></div>
 
     <!-- Theme Switcher -->
-    <div id="theme-switcher" class="fixed bottom-4 left-4 z-[80]">
-        <div id="theme-menu" class="hidden absolute bottom-14 left-0 flex flex-col gap-2 bg-[var(--c-surface)] p-3 border-2 border-[var(--c-ink)] shadow-[3px_3px_0_0_var(--c-ink)]">
+    <div id="theme-switcher" class="fixed right-3 sm:right-4 z-[80]" style="bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+        <div id="theme-menu" class="hidden absolute bottom-12 right-0 flex flex-col gap-2 bg-[var(--c-surface)] p-3 border-2 border-[var(--c-ink)] shadow-[3px_3px_0_0_var(--c-ink)]">
             <p class="text-[10px] font-bold tracking-widest text-[var(--c-muted)] mb-1">BỘ MÀU</p>
             <button type="button" data-action="set-theme" data-theme="forest" class="flex items-center gap-2 border-2 border-[var(--c-border-strong)] hover:border-[var(--c-ink)] px-2 py-1.5 text-left">
                 <span class="flex gap-0.5"><span class="w-3 h-3 border border-black/20" style="background:#6F826A"></span><span class="w-3 h-3 border border-black/20" style="background:#BF9264"></span><span class="w-3 h-3 border border-black/20" style="background:#BBD8A3"></span><span class="w-3 h-3 border border-black/20" style="background:#F0F1C5"></span></span>
@@ -425,70 +484,62 @@
                 <span class="text-xs font-semibold">Đất nung</span>
             </button>
         </div>
-        <button type="button" data-action="toggle-theme-menu" aria-label="Đổi bộ màu" class="box-btn inline-flex items-center justify-center w-11 h-11 bg-[var(--c-primary)] text-[var(--c-primary-fg)]">
+        <button type="button" data-action="toggle-theme-menu" aria-label="Đổi bộ màu" class="box-btn inline-flex items-center justify-center w-10 h-10 bg-[var(--c-primary)] text-[var(--c-primary-fg)]">
             <i data-lucide="palette" class="w-5 h-5"></i>
         </button>
     </div>
 
     <!-- Main Logic Script (Inlined to fix CORS issues) -->
     <script type="module">
-        // We'll load Firebase and Google GenAI dynamically to avoid CORS/import errors
-        // when opening the file locally (file://) or when these libs are not needed.
+        // Firebase and Google GenAI are loaded dynamically so the page still renders
+        // when opened via file:// or when the CDN is unreachable.
         let initializeApp, getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp;
-        let getAuth, signInAnonymously;
+        let query, where, getDoc, getDocs, setDoc, runTransaction, arrayUnion, writeBatch;
+        let getAuth, signInAnonymously, onAuthStateChanged;
         let GoogleGenAI, Type;
 
         // --- FIREBASE CONFIG ---
         const firebaseConfig = {
-            apiKey: "AIzaSyD5TIQ65Svby10oRmmObxhr0-4h4f8GRN8",
-            authDomain: "sending-5a2ed.firebaseapp.com",
-            projectId: "sending-5a2ed",
-            storageBucket: "sending-5a2ed.firebasestorage.app",
-            messagingSenderId: "277993628196",
-            appId: "1:277993628196:web:37ba3db909a6d5398e6eb1"
+            apiKey: "AIzaSyDKoaSt_CYnc-NNU5YTqh8iYSeZn-53MMA",
+            authDomain: "easytrip-55faf.firebaseapp.com",
+            projectId: "easytrip-55faf",
+            storageBucket: "easytrip-55faf.firebasestorage.app",
+            messagingSenderId: "692521389570",
+            appId: "1:692521389570:web:08a133c46013f7bc03611b"
         };
+        const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.8.0';
 
-        // Initialize Firebase (dynamically)
-        let db;
+        let db = null;
+        let auth = null;
         let firebaseApp = null;
-        (async () => {
-            try {
-                if (typeof initializeApp === 'undefined' || !initializeApp) {
-                    const fbApp = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
-                    const fbFire = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-                    const fbAuth = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
-                    initializeApp = fbApp.initializeApp;
-                    getFirestore = fbFire.getFirestore || fbFire.initializeFirestore;
-                    collection = fbFire.collection;
-                    onSnapshot = fbFire.onSnapshot;
-                    addDoc = fbFire.addDoc;
-                    doc = fbFire.doc;
-                    updateDoc = fbFire.updateDoc;
-                    deleteDoc = fbFire.deleteDoc;
-                    serverTimestamp = fbFire.serverTimestamp;
-                    getAuth = fbAuth.getAuth;
-                    signInAnonymously = fbAuth.signInAnonymously;
-                }
+        let firebaseReady = null;
 
-                firebaseApp = initializeApp(firebaseConfig);
-                console.log("Firebase App initialized:", firebaseApp.name);
-                // Use getFirestore if available (modular SDK)
-                db = (getFirestore && typeof getFirestore === 'function') ? getFirestore(firebaseApp) : null;
+        // Loads the SDK and initializes app/db/auth exactly once.
+        const initFirebase = () => {
+            if (firebaseReady) return firebaseReady;
+            firebaseReady = (async () => {
+                try {
+                    const [fbApp, fbFire, fbAuth] = await Promise.all([
+                        import(`${FIREBASE_SDK}/firebase-app.js`),
+                        import(`${FIREBASE_SDK}/firebase-firestore.js`),
+                        import(`${FIREBASE_SDK}/firebase-auth.js`),
+                    ]);
+                    ({ initializeApp } = fbApp);
+                    ({ getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp,
+                        query, where, getDoc, getDocs, setDoc, runTransaction, arrayUnion, writeBatch } = fbFire);
+                    ({ getAuth, signInAnonymously, onAuthStateChanged } = fbAuth);
 
-                // Anonymous sign-in so security rules requiring auth keep working
-                if (db && typeof getAuth === 'function' && typeof signInAnonymously === 'function') {
-                    try {
-                        await signInAnonymously(getAuth(firebaseApp));
-                    } catch (authErr) {
-                        console.warn("Anonymous sign-in failed (bật Anonymous provider trong Firebase Console):", authErr);
-                    }
+                    firebaseApp = initializeApp(firebaseConfig);
+                    db = getFirestore(firebaseApp);
+                    auth = getAuth(firebaseApp);
+                } catch (e) {
+                    console.error("Firebase Initialization Error:", e);
+                    const loaderText = document.getElementById('loader-text');
+                    if (loaderText) loaderText.innerText = "Lỗi kết nối. Vui lòng tải lại.";
                 }
-            } catch (e) {
-                console.error("Firebase Initialization Error:", e);
-                const loaderText = document.getElementById('loader-text');
-                if (loaderText) loaderText.innerText = "Lỗi kết nối. Vui lòng tải lại.";
-            }
-        })();
+            })();
+            return firebaseReady;
+        };
 
         const TRIPS_COLLECTION = 'trips';
 
@@ -541,14 +592,21 @@
                     <stop offset="100%" stop-color="hsl(${(hue + 40) % 360},55%,45%)"/>
                 </linearGradient></defs>
                 <rect width="100%" height="100%" fill="url(#g)"/>
-                <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-size="28" font-family="Arial,sans-serif" font-weight="bold">${seed}</text>
             </svg>`;
             return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        };
+
+        // Older generated covers had the trip name baked into the SVG, which doubles up with the title overlay.
+        const coverSrc = (url) => {
+            const prefix = 'data:image/svg+xml;charset=utf-8,';
+            if (typeof url !== 'string' || !url.startsWith(prefix) || !url.includes('%3Ctext')) return url;
+            try { return prefix + encodeURIComponent(decodeURIComponent(url.slice(prefix.length)).replace(/<text[\s\S]*?<\/text>/g, '')); } catch (e) { return url; }
         };
 
         const FALLBACK_IMAGE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
             '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="100%" height="100%" fill="#e2e8f0"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#94a3b8" font-size="20" font-family="Arial,sans-serif">No Image</text></svg>'
         )}`;
+        window.FALLBACK_IMAGE = FALLBACK_IMAGE; // used by inline onerror handlers
 
         const encodeData = (data) => {
             try {
@@ -572,6 +630,31 @@
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+        // SVG markup of a QR code for `text`, drawn locally by qrcode-generator.
+        const qrSvg = (text) => {
+            if (!window.qrcode || !text) return '';
+            const qr = window.qrcode(0, 'M');
+            qr.addData(text);
+            qr.make();
+            return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+        };
+
+        const shareViewUrl = (tripId) => `${window.location.href.split('#')[0]}#trip=${tripId}`;
+
+        // The edit link is a secret: its QR is shown only on request and hidden again after a minute.
+        const EDIT_QR_SECONDS = 60;
+        let editQr = null; // { url, until }
+        let editQrTimer = null;
+        const hideEditQr = () => {
+            editQr = null;
+            if (editQrTimer) { clearInterval(editQrTimer); editQrTimer = null; }
+        };
+        const closeShareModal = () => {
+            hideEditQr();
+            store.shareModalOpen = false;
+            render();
+        };
+
         const showToast = (message, type = 'success') => {
             let container = document.getElementById('toast-container');
             if (!container) {
@@ -583,7 +666,7 @@
             const styles = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-slate-800' };
             const icons = { success: 'check-circle-2', error: 'alert-circle', info: 'info' };
             const toast = document.createElement('div');
-            toast.className = `flex items-center gap-2 text-white px-4 py-3 rounded-lg shadow-lg max-w-xs animate-fade-in-down ${styles[type] || styles.info}`;
+            toast.className = `flex items-center gap-2 text-white px-4 py-3 rounded-lg shadow-lg sm:max-w-xs animate-fade-in-down ${styles[type] || styles.info}`;
             toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 flex-shrink-0"></i><span class="text-sm font-medium">${escapeHtml(message)}</span>`;
             container.appendChild(toast);
             if (window.lucide) window.lucide.createIcons();
@@ -644,6 +727,18 @@
         };
 
         // Nén ảnh trước khi lưu để tránh vượt giới hạn 1 MiB/document của Firestore
+        // Receipt photos are stored inside Firestore documents, so each must stay small.
+        const RECEIPT_MAX_CHARS = 300000;
+        const RECEIPT_LEVELS = [[1280, 0.6], [1024, 0.5], [800, 0.45]];
+        const MAX_RECEIPTS_PER_EXPENSE = 3;
+        const compressReceipt = async (file, compress = compressImage) => {
+            for (const [maxDim, quality] of RECEIPT_LEVELS) {
+                const dataUrl = await compress(file, maxDim, quality);
+                if (dataUrl.length <= RECEIPT_MAX_CHARS) return dataUrl;
+            }
+            return null;
+        };
+
         const compressImage = (file, maxDim = 1280, quality = 0.7) => {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -750,15 +845,195 @@
 
         const syncScrollLock = () => {
             const overlayOpen = !!document.getElementById('confirm-overlay') || !!document.getElementById('prompt-overlay');
-            const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || overlayOpen;
+            const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || store.shareModalOpen || store.advanceModalOpen || !!store.bankModal || !!store.payQr || !!store.receiptViewer || overlayOpen;
             document.body.style.overflow = modalOpen ? 'hidden' : '';
+            // The floating theme button would cover the sticky Save button of bottom sheets
+            const themeSwitcher = document.getElementById('theme-switcher');
+            if (themeSwitcher) themeSwitcher.style.display = modalOpen ? 'none' : '';
+        };
+
+        // --- VIETQR ---
+        // Banks that accept VietQR transfers: [short name, BIN]. Source: api.vietqr.io/v2/banks (transferSupported), 2026-10-17.
+        const VN_BANKS = [["VietinBank", "970415"], ["Vietcombank", "970436"], ["BIDV", "970418"], ["Agribank", "970405"], ["OCB", "970448"], ["MBBank", "970422"], ["Techcombank", "970407"], ["ACB", "970416"], ["VPBank", "970432"], ["TPBank", "970423"], ["Sacombank", "970403"], ["HDBank", "970437"], ["VietCapitalBank", "970454"], ["SCB", "970429"], ["VIB", "970441"], ["SHB", "970443"], ["Eximbank", "970431"], ["MSB", "970426"], ["CAKE", "546034"], ["Ubank", "546035"], ["Timo", "963388"], ["SaigonBank", "970400"], ["BacABank", "970409"], ["PVcomBank Pay", "971133"], ["MoMo", "971025"], ["PVcomBank", "970412"], ["MBV", "970414"], ["NCB", "970419"], ["ShinhanBank", "970424"], ["ABBANK", "970425"], ["VietABank", "970427"], ["NamABank", "970428"], ["PGBank", "970430"], ["VietBank", "970433"], ["BaoVietBank", "970438"], ["SeABank", "970440"], ["COOPBANK", "970446"], ["LPBank", "970449"], ["KienLongBank", "970452"], ["KBank", "668888"], ["ZaloPay", "971101"], ["MVAS", "971032"], ["IndovinaBank", "970434"], ["CIMB", "422589"], ["CBBank", "970444"], ["Woori", "970457"], ["KookminHN", "970462"], ["KookminHCM", "970463"]];
+        const bankByBin = (bin) => VN_BANKS.find(b => b[1] === bin);
+
+        // CRC-16/CCITT-FALSE, as required by the EMVCo QR spec
+        const crc16 = (str) => {
+            let crc = 0xFFFF;
+            for (let i = 0; i < str.length; i++) {
+                crc ^= str.charCodeAt(i) << 8;
+                for (let j = 0; j < 8; j++) crc = ((crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF;
+            }
+            return crc.toString(16).toUpperCase().padStart(4, '0');
+        };
+        const tlv = (id, value) => id + String(value.length).padStart(2, '0') + value;
+
+        // Vietnamese → plain ASCII letters/digits/spaces (bank apps reject other characters in the note)
+        const toAsciiText = (str) => String(str == null ? '' : str)
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+            .replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // NAPAS 247 "transfer to account" payload with a fixed amount and note
+        const buildVietQR = ({ bin, accountNumber, amount, purpose }) => {
+            const merchant = tlv('00', 'A000000727') + tlv('01', tlv('00', bin) + tlv('01', accountNumber)) + tlv('02', 'QRIBFTTA');
+            let payload = tlv('00', '01') + tlv('01', amount > 0 ? '12' : '11') + tlv('38', merchant) + tlv('53', '704');
+            if (amount > 0) payload += tlv('54', String(Math.round(amount)));
+            payload += tlv('58', 'VN');
+            const note = toAsciiText(purpose).slice(0, 25).trim();
+            if (note) payload += tlv('62', tlv('08', note));
+            payload += '6304';
+            return payload + crc16(payload);
+        };
+
+        const parseTlv = (str) => {
+            const out = {};
+            let i = 0;
+            while (i < str.length) {
+                const id = str.slice(i, i + 2);
+                const len = parseInt(str.slice(i + 2, i + 4), 10);
+                if (!/^\d{2}$/.test(id) || Number.isNaN(len) || i + 4 + len > str.length) return null;
+                out[id] = str.slice(i + 4, i + 4 + len);
+                i += 4 + len;
+            }
+            return out;
+        };
+
+        // Reads bank BIN + account (+ holder name if present) out of a VietQR payload; null if it isn't one.
+        const parseVietQR = (payload) => {
+            if (typeof payload !== 'string' || !payload.startsWith('000201')) return null;
+            const crcAt = payload.length - 8;
+            if (payload.slice(crcAt, crcAt + 4) !== '6304' || crc16(payload.slice(0, crcAt + 4)) !== payload.slice(crcAt + 4).toUpperCase()) return null;
+            const top = parseTlv(payload);
+            if (!top) return null;
+            for (let tag = 26; tag <= 51; tag++) {
+                const merchant = top[String(tag)] && parseTlv(top[String(tag)]);
+                if (!merchant || merchant['00'] !== 'A000000727' || !merchant['01']) continue;
+                const account = parseTlv(merchant['01']);
+                if (!account || !account['00'] || !account['01']) continue;
+                return { bin: account['00'], accountNumber: account['01'], accountName: top['59'] || '' };
+            }
+            return null;
+        };
+
+        // jsQR is only fetched when someone actually picks a QR image; SRI pins the exact file.
+        const JSQR_SRC = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+        const JSQR_SRI = 'sha384-hStSInNIZ8ljtOVrmrgf7zdHMapaLBWoSnPTtF0nzsybp4+LuhDz6sHuEVpWIX8o';
+        let jsQrLoading = null;
+        const loadJsQr = () => {
+            if (window.jsQR) return Promise.resolve(window.jsQR);
+            if (!jsQrLoading) {
+                jsQrLoading = new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = JSQR_SRC;
+                    script.integrity = JSQR_SRI;
+                    script.crossOrigin = 'anonymous';
+                    script.onload = () => resolve(window.jsQR);
+                    script.onerror = () => { jsQrLoading = null; reject(new Error('Không tải được bộ đọc QR.')); };
+                    document.head.appendChild(script);
+                });
+            }
+            return jsQrLoading;
+        };
+
+        // Decodes the QR in an image file entirely on this device. Tries a few sizes since photos vary a lot.
+        const decodeQrFromFile = async (file) => {
+            const jsQR = await loadJsQr();
+            const url = URL.createObjectURL(file);
+            try {
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = () => reject(new Error('Không đọc được ảnh. Hãy chọn ảnh JPG/PNG khác.'));
+                    img.src = url;
+                });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                for (const maxDim of [1600, 1000, 600]) {
+                    const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+                    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+                    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const result = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+                    if (result && result.data) return result.data;
+                }
+                return null;
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        };
+
+        // --- BALANCE CALCULATION ---
+        const memberWeight = (mem) => (mem && mem.childRate) || 1;
+
+        // Returns { memberId: share } for one expense. Ids of members that no longer exist are ignored.
+        const splitExpense = (expense, members) => {
+            const byId = new Map(members.map(m => [m.id, m]));
+            const ids = (expense.involvedMemberIds && expense.involvedMemberIds.length > 0) ? expense.involvedMemberIds : members.map(m => m.id);
+            const involved = ids.filter(id => byId.has(id));
+            const totalWeight = involved.reduce((sum, id) => sum + memberWeight(byId.get(id)), 0);
+            const shares = {};
+            if (totalWeight <= 0) return shares;
+            involved.forEach(id => { shares[id] = (expense.amount || 0) * memberWeight(byId.get(id)) / totalWeight; });
+            return shares;
+        };
+
+        // An advance is money one member handed to another (the treasurer). Older advances
+        // without a receiver are not counted until someone picks the receiver.
+        const isCountedAdvance = (a, members) => !!(a && a.receiverId && a.receiverId !== a.memberId
+            && members.some(m => m.id === a.memberId) && members.some(m => m.id === a.receiverId));
+
+        // Per-member totals; balance > 0 means the member should get money back. Balances sum to 0.
+        const computeMemberStats = (trip) => {
+            const members = trip.members || [];
+            const stats = new Map(members.map(m => [m.id, { ...m, paid: 0, consumed: 0, advanceGiven: 0, advanceHeld: 0, txCount: 0 }]));
+            (trip.expenses || []).forEach(e => {
+                const payer = stats.get(e.payerId);
+                if (payer) { payer.paid += e.amount || 0; payer.txCount++; }
+                Object.entries(splitExpense(e, members)).forEach(([id, share]) => { stats.get(id).consumed += share; });
+            });
+            (trip.advances || []).forEach(a => {
+                if (!isCountedAdvance(a, members)) return;
+                stats.get(a.memberId).advanceGiven += a.amount || 0;
+                stats.get(a.receiverId).advanceHeld += a.amount || 0;
+            });
+            return [...stats.values()]
+                .map(m => ({ ...m, balance: m.paid + m.advanceGiven - m.consumed - m.advanceHeld }))
+                .sort((a, b) => a.balance - b.balance);
+        };
+
+        // Why a member can't be removed without changing who owes what, or null if removal is safe.
+        const memberRemovalBlocker = (trip, memberId) => {
+            const name = (trip.members || []).find(m => m.id === memberId)?.name || 'Thành viên này';
+            if ((trip.expenses || []).some(e => e.payerId === memberId))
+                return `${name} là người trả của một khoản chi. Hãy đổi người trả hoặc xóa khoản chi đó trước.`;
+            if ((trip.advances || []).some(a => a.memberId === memberId || a.receiverId === memberId))
+                return `${name} có trong một khoản ứng tiền. Hãy xóa khoản ứng đó trước.`;
+            if ((trip.expenses || []).some(e => e.involvedMemberIds && e.involvedMemberIds.length === 1 && e.involvedMemberIds[0] === memberId))
+                return `${name} là người duy nhất dùng một khoản chi. Hãy sửa hoặc xóa khoản chi đó trước.`;
+            return null;
         };
 
         // --- STATE MANAGEMENT ---
         const store = {
-            trips: [],
+            uid: null, // anonymous auth uid of this browser
+            authError: '', // user-facing reason sign-in failed
+            trips: [], // trips this uid can edit
+            externalTrip: null, // trip opened via link that is not in `trips`
+            linkTripId: null, // id from #trip=<id>
+            pendingEditKey: null, // key from #trip=<id>&key=<k>, consumed after sign-in
             activeTripId: null,
-            isReadOnly: false,
+            isReadOnly: false, // derived from canEdit() on every render of a trip
+            shareModalOpen: false,
+            bankAccounts: {}, // memberId -> { bin, bankName, accountNumber, accountName }; loaded only for editors
+            bankModal: null, // { memberId, bin, accountNumber, accountName, filter }
+            payQr: null, // { fromId, toId, amount }
+            receiptCache: {}, // receiptId -> data URL, or 'error'
+            receiptViewer: null, // { expenseId }
+            advanceModalOpen: false,
+            advanceForm: { memberId: '', receiverId: '', amount: '' },
             activeTab: 'expenses',
             editingExpenseId: null,
             expenseModalOpen: false,
@@ -783,138 +1058,194 @@
 
         // --- FIREBASE OPERATIONS ---
 
+        const SECRETS_COLLECTION = 'tripSecrets';
+
+        const canEdit = (trip) => !!(trip && store.uid && Array.isArray(trip.editors) && trip.editors.includes(store.uid));
+        const isOwner = (trip) => !!(trip && store.uid && trip.ownerId === store.uid);
+        // Trips created before ownership existed have no editors list; the first person to claim one becomes its owner.
+        const isLegacyTrip = (trip) => !!(trip && !trip._localShare && !Array.isArray(trip.editors));
+
+        const getActiveTrip = () => {
+            if (!store.activeTripId) return null;
+            return store.trips.find(t => t.id === store.activeTripId)
+                || (store.externalTrip && store.externalTrip.id === store.activeTripId ? store.externalTrip : null);
+        };
+
+        let unsubMyTrips = null;
+        let unsubLinkTrip = null;
+
+        const subscribeMyTrips = () => {
+            if (unsubMyTrips) { unsubMyTrips(); unsubMyTrips = null; }
+            if (!db || !store.uid) return;
+            const q = query(collection(db, TRIPS_COLLECTION), where('editors', 'array-contains', store.uid));
+            unsubMyTrips = onSnapshot(q, (snapshot) => {
+                const tripsData = [];
+                snapshot.forEach((d) => tripsData.push({ id: d.id, ...d.data() }));
+                store.trips = tripsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                render();
+            }, (error) => {
+                console.error("Firebase Error:", error);
+                render();
+            });
+        };
+
+        const watchLinkTrip = (tripId) => {
+            if (unsubLinkTrip) { unsubLinkTrip(); unsubLinkTrip = null; }
+            if (!db || !tripId) return;
+            unsubLinkTrip = onSnapshot(doc(db, TRIPS_COLLECTION, tripId), (snap) => {
+                store.externalTrip = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+                render();
+            }, (error) => {
+                console.error("Firebase Error:", error);
+                render();
+            });
+        };
+
+        // Bank details live in a subcollection that only editors can read, so they never reach view-link holders.
+        let unsubBank = null;
+        let bankListenerTripId = null;
+        const ensureBankListener = (trip) => {
+            const wanted = trip && db && canEdit(trip) ? trip.id : null;
+            if (wanted === bankListenerTripId) return;
+            if (unsubBank) { unsubBank(); unsubBank = null; }
+            bankListenerTripId = wanted;
+            store.bankAccounts = {};
+            if (!wanted) return;
+            unsubBank = onSnapshot(collection(db, TRIPS_COLLECTION, wanted, 'bankAccounts'), (snap) => {
+                const map = {};
+                snap.forEach(d => { map[d.id] = d.data(); });
+                store.bankAccounts = map;
+                render();
+            }, (error) => console.warn('Bank accounts listener:', error));
+        };
+
+        // Receipt images are fetched only when someone looks at them.
+        const loadReceipts = async (ids) => {
+            const missing = (ids || []).filter(id => !(id in store.receiptCache));
+            if (!missing.length || !db) return;
+            await Promise.all(missing.map(async (id) => {
+                try {
+                    const snap = await getDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'receipts', id));
+                    store.receiptCache[id] = snap.exists() ? snap.data().data : 'error';
+                } catch (err) {
+                    console.warn('Receipt load failed:', err);
+                    store.receiptCache[id] = 'error';
+                }
+            }));
+            render();
+        };
+        const deleteReceiptDocs = (tripId, ids) => Promise.all((ids || []).map(id =>
+            deleteDoc(doc(db, TRIPS_COLLECTION, tripId, 'receipts', id)).catch(err => console.warn('Receipt delete failed:', err))));
+
+        const randomKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+
+        // Returns the trip's edit key, creating it if missing. Only editors can read/create it.
+        const ensureEditKey = async (tripId) => {
+            const ref = doc(db, SECRETS_COLLECTION, tripId);
+            const snap = await getDoc(ref);
+            if (snap.exists() && snap.data().editKey) return snap.data().editKey;
+            const editKey = randomKey();
+            await setDoc(ref, { editKey });
+            return editKey;
+        };
+
+        const joinTripWithKey = async (tripId, key) => {
+            try {
+                await setDoc(doc(db, TRIPS_COLLECTION, tripId, 'joinRequests', store.uid), { key });
+                await updateDoc(doc(db, TRIPS_COLLECTION, tripId), { editors: arrayUnion(store.uid) });
+                showToast('Bạn đã có quyền sửa chuyến đi này', 'success');
+            } catch (e) {
+                console.error("Error joining trip: ", e);
+                showToast('Link sửa không hợp lệ hoặc đã hết hạn.', 'error');
+            }
+        };
+
+        const claimTrip = async (tripId) => {
+            try {
+                await updateDoc(doc(db, TRIPS_COLLECTION, tripId), { ownerId: store.uid, editors: [store.uid] });
+                await ensureEditKey(tripId);
+                showToast('Bạn đã là chủ chuyến đi này', 'success');
+                return true;
+            } catch (e) {
+                console.error("Error claiming trip: ", e);
+                showToast('Không thể nhận quyền sở hữu. ' + (e.message || ''), 'error');
+                return false;
+            }
+        };
+
         const initFirebaseListener = () => {
             const loader = document.getElementById('global-loader');
-            const loaderText = document.getElementById('loader-text');
 
             // Show the page immediately while Firebase loads in background
             checkShareLink();
             render();
             if (loader) loader.classList.add('hidden-loader');
 
-            // Overall timeout: if Firebase hasn't responded in 5s, re-render anyway
-            let firebaseResolved = false;
-            const safetyTimeout = setTimeout(() => {
-                if (!firebaseResolved) {
-                    checkShareLink();
-                    render();
-                }
-            }, 5000);
-
-            const finish = () => {
-                firebaseResolved = true;
-                clearTimeout(safetyTimeout);
-            };
-
-            // Dynamic import Firebase modules when initializing listener and run Firestore logic after ready
-            const ensureFirebase = async () => {
-                if (typeof initializeApp === 'undefined' || !initializeApp) {
-                    try {
-                        const fbApp = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
-                        const fbFire = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-                        const fbAuth = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
-                        initializeApp = fbApp.initializeApp;
-                        // Use getFirestore for browser SDK
-                        getFirestore = fbFire.getFirestore || fbFire.initializeFirestore;
-                        collection = fbFire.collection;
-                        onSnapshot = fbFire.onSnapshot;
-                        addDoc = fbFire.addDoc;
-                        doc = fbFire.doc;
-                        updateDoc = fbFire.updateDoc;
-                        deleteDoc = fbFire.deleteDoc;
-                        serverTimestamp = fbFire.serverTimestamp;
-                        getAuth = fbAuth.getAuth;
-                        signInAnonymously = fbAuth.signInAnonymously;
-                    } catch (err) {
-                        console.warn('Firebase dynamic import failed:', err);
-                        // Leave db undefined and fallback to offline UI
-                    }
-                }
-
-                // If imports succeeded but app/db not initialized yet, initialize here
-                try {
-                    if (!firebaseApp && typeof initializeApp === 'function') {
-                        firebaseApp = initializeApp(firebaseConfig);
-                    }
-                    if (!db && firebaseApp && typeof getFirestore === 'function') {
-                        db = getFirestore(firebaseApp);
-                        console.log('Firebase initialized inside ensureFirebase');
-                    }
-                    if (db && typeof getAuth === 'function' && typeof signInAnonymously === 'function') {
-                        try {
-                            await signInAnonymously(getAuth(firebaseApp));
-                        } catch (authErr) {
-                            console.warn('Anonymous sign-in failed (bật Anonymous provider trong Firebase Console):', authErr);
-                        }
-                    }
-                } catch (err) {
-                    console.warn('Failed to initialize Firebase in ensureFirebase:', err);
-                }
-            };
-
             (async () => {
-                await ensureFirebase();
-                if (!db) {
-                    finish();
-                    return;
-                }
+                await initFirebase();
+                if (!db || !auth) { render(); return; }
 
-                const q = collection(db, TRIPS_COLLECTION);
-
-                onSnapshot(q, (snapshot) => {
-                    finish();
-                    const tripsData = [];
-                    snapshot.forEach((doc) => {
-                        tripsData.push({ id: doc.id, ...doc.data() });
-                    });
-
-                    store.trips = tripsData.sort((a, b) => {
-                        const timeA = a.createdAt?.seconds || 0;
-                        const timeB = b.createdAt?.seconds || 0;
-                        return timeB - timeA;
-                    });
-
-                    checkShareLink();
-                    render();
-                }, (error) => {
-                    finish();
-                    console.error("Firebase Error:", error);
-                    checkShareLink();
+                onAuthStateChanged(auth, async (user) => {
+                    store.uid = user ? user.uid : null;
+                    subscribeMyTrips();
+                    // Reading a trip requires sign-in, so the shared-link listener starts only once we have a uid
+                    if (store.uid && store.linkTripId) watchLinkTrip(store.linkTripId);
+                    if (store.uid && store.pendingEditKey && store.linkTripId) {
+                        const key = store.pendingEditKey;
+                        store.pendingEditKey = null;
+                        await joinTripWithKey(store.linkTripId, key);
+                    }
                     render();
                 });
+
+                try {
+                    await signInAnonymously(auth);
+                } catch (authErr) {
+                    console.warn('Anonymous sign-in failed (bật Anonymous provider trong Firebase Console):', authErr);
+                    const code = authErr && authErr.code;
+                    store.authError = (code === 'auth/configuration-not-found' || code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation')
+                        ? 'Chưa bật đăng nhập ẩn danh (Anonymous) trong Firebase Authentication.'
+                        : 'Không đăng nhập được. Kiểm tra kết nối mạng rồi tải lại trang.';
+                }
             })();
         };
 
         const checkShareLink = () => {
             const hash = window.location.hash;
 
-            // Hỗ trợ cả link cũ (nếu muốn giữ tương thích)
+            // Link cũ dạng #share=<base64> – chỉ xem bản chụp dữ liệu trong link
             if (hash.startsWith('#share=')) {
                 try {
-                    const encoded = hash.substring(7);
-                    const sharedTrip = decodeData(encoded);
+                    const sharedTrip = decodeData(hash.substring(7));
                     if (sharedTrip && sharedTrip.id) {
                         store.activeTripId = sharedTrip.id;
-                        store.isReadOnly = true;
-                        if (!store.trips.find(t => t.id === sharedTrip.id)) {
-                            store.trips.push(sharedTrip);
-                        }
+                        store.externalTrip = { ...sharedTrip, _localShare: true };
                     }
                 } catch (e) { console.error(e); }
             }
-            // Link mới – chỉ cần id
+            // #trip=<id> (xem) hoặc #trip=<id>&key=<editKey> (link sửa)
             else if (hash.startsWith('#trip=')) {
-                const tripId = hash.substring(6);
+                const params = new URLSearchParams(hash.substring(1));
+                const tripId = params.get('trip');
                 if (tripId) {
                     store.activeTripId = tripId;
-                    store.isReadOnly = true;
-                    // Không cần push thủ công nữa vì onSnapshot sẽ tự load
+                    store.linkTripId = tripId;
+                    const key = params.get('key');
+                    if (key) {
+                        store.pendingEditKey = key;
+                        // Don't leave the secret in the address bar / history
+                        try { window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}#trip=${tripId}`); } catch (err) { /* ignore */ }
+                    }
                 }
             }
         };
 
         // --- DB FUNCTIONS ---
         const createTripInDB = async (name, coverImage = null) => {
+            if (!db || !store.uid) {
+                showToast(store.authError || 'Đang kết nối, vui lòng thử lại sau giây lát.', 'error');
+                return false;
+            }
             try {
                 const newTrip = {
                     name: name,
@@ -923,9 +1254,12 @@
                     members: [],
                     expenses: [],
                     advances: [],
+                    ownerId: store.uid,
+                    editors: [store.uid],
                     createdAt: serverTimestamp()
                 };
                 const docRef = await addDoc(collection(db, TRIPS_COLLECTION), newTrip);
+                try { await ensureEditKey(docRef.id); } catch (err) { console.warn('Could not create edit key:', err); }
                 store.isCreating = false;
                 store.newTripName = '';
                 store.activeTripId = docRef.id;
@@ -938,16 +1272,35 @@
             }
         };
 
-        const updateTripInDB = async (trip) => {
-            if (!trip || !trip.id) return false;
+        // Thrown inside a mutation to cancel it with a user-facing message.
+        class MutationAbort extends Error { }
+
+        // Applies `fn` to the latest server copy of the trip inside a transaction, so concurrent
+        // edits from other people are not overwritten. `fn` returns only the fields to change.
+        const mutateTrip = async (tripId, fn) => {
+            if (!db || !tripId) return false;
             try {
-                const tripRef = doc(db, TRIPS_COLLECTION, trip.id);
-                const { id, ...dataToSave } = trip;
-                await updateDoc(tripRef, dataToSave);
+                await runTransaction(db, async (tx) => {
+                    const ref = doc(db, TRIPS_COLLECTION, tripId);
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) throw new MutationAbort('Chuyến đi không còn tồn tại.');
+                    const data = snap.data();
+                    const changes = fn({
+                        ...data,
+                        members: data.members || [],
+                        expenses: data.expenses || [],
+                        advances: data.advances || [],
+                    });
+                    tx.update(ref, changes);
+                });
                 return true;
             } catch (e) {
-                console.error("Error updating trip: ", e);
-                showToast("Không thể lưu thay đổi. " + (e.message || ''), 'error');
+                if (e instanceof MutationAbort) {
+                    showToast(e.message, 'error');
+                } else {
+                    console.error("Error updating trip: ", e);
+                    showToast("Không thể lưu thay đổi. " + (e.message || ''), 'error');
+                }
                 return false;
             }
         };
@@ -955,7 +1308,18 @@
         const deleteTripFromDB = async (id) => {
             if (!id) return false;
             try {
-                await deleteDoc(doc(db, TRIPS_COLLECTION, id));
+                const [joinRequests, bankAccounts] = await Promise.all([
+                    getDocs(collection(db, TRIPS_COLLECTION, id, 'joinRequests')),
+                    getDocs(collection(db, TRIPS_COLLECTION, id, 'bankAccounts')),
+                ]);
+                const batch = writeBatch(db);
+                joinRequests.forEach(d => batch.delete(d.ref));
+                bankAccounts.forEach(d => batch.delete(d.ref));
+                const tripToDelete = store.trips.find(t => t.id === id) || getActiveTrip();
+                ((tripToDelete && tripToDelete.expenses) || []).forEach(e => (e.receiptIds || []).forEach(rid => batch.delete(doc(db, TRIPS_COLLECTION, id, 'receipts', rid))));
+                batch.delete(doc(db, SECRETS_COLLECTION, id));
+                batch.delete(doc(db, TRIPS_COLLECTION, id));
+                await batch.commit();
                 if (store.activeTripId === id) store.activeTripId = null;
                 render();
                 showToast('Đã xóa chuyến đi', 'success');
@@ -977,7 +1341,7 @@
                 // Dynamically load Google GenAI SDK to avoid loading it on initial page load
                 if (typeof GoogleGenAI === 'undefined' || !GoogleGenAI) {
                     try {
-                        const gen = await import('https://esm.sh/@google/genai');
+                        const gen = await import('https://esm.sh/@google/genai@2.27.0');
                         GoogleGenAI = gen.GoogleGenAI || gen.default?.GoogleGenAI || gen.default || gen.Google || gen;
                         Type = gen.Type || (gen.default && gen.default.Type) || Type;
                     } catch (err) {
@@ -1022,9 +1386,9 @@
         // --- HELPER FOR IMAGES ---
         const GALLERIES = [
             'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', // Nature
-            'https://images.unsplash.com/photo-1496417263034-38ec4f0d6b21?auto=format&fit=crop&w=800&q=80', // Travel
+            'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80', // Ha Long Bay
             'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80', // Food
-            'https://images.unsplash.com/photo-1519671482538-518b502b3714?auto=format&fit=crop&w=800&q=80', // Road
+            'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80', // Road trip
             'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80', // Party
             'https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=800&q=80', // Venice
         ];
@@ -1050,8 +1414,8 @@
                 </div>`
                 : store.trips.map(trip => `
                     <div class="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-200 flex flex-col h-full">
-                        <div class="relative h-40 overflow-hidden cursor-pointer" data-action="select-trip" data-id="${trip.id}">
-                            <img src="${trip.coverImage}" alt="${escapeHtml(trip.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src=FALLBACK_IMAGE" />
+                        <div class="relative h-40 overflow-hidden cursor-pointer" data-action="select-trip" data-id="${escapeHtml(trip.id)}">
+                            <img src="${escapeHtml(coverSrc(trip.coverImage))}" alt="${escapeHtml(trip.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                             <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                             <h3 class="absolute bottom-3 left-4 right-4 text-xl font-bold text-white shadow-black/50 drop-shadow-md truncate">${escapeHtml(trip.name)}</h3>
                         </div>
@@ -1063,18 +1427,18 @@
                                 <i data-lucide="users" class="w-4 h-4 mr-2"></i> ${trip.members ? trip.members.length : 0} thành viên
                             </div>
                             <div class="mt-auto flex justify-between items-center pt-4 border-t border-gray-100">
-                                <button data-action="select-trip" data-id="${trip.id}" class="bg-gray-100 text-gray-700 hover:bg-gray-200 px-3 py-1 rounded text-xs font-medium transition-colors">Xem Chi Tiết</button>
-                                <button data-action="delete-trip" data-id="${trip.id}" class="text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors z-20"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                <button data-action="select-trip" data-id="${escapeHtml(trip.id)}" class="bg-gray-100 text-gray-700 hover:bg-gray-200 px-3 min-h-[40px] rounded text-xs font-medium transition-colors">Xem Chi Tiết</button>
+                                ${isOwner(trip) ? `<button data-action="delete-trip" data-id="${escapeHtml(trip.id)}" aria-label="Xóa chuyến đi" class="icon-btn text-red-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors z-20"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                             </div>
                         </div>
                     </div>
                 `).join('');
 
             return `
-                <div class="container mx-auto px-4 py-8 max-w-5xl">
-                    <div class="flex justify-between items-center mb-8">
-                        <h1 class="text-3xl font-bold text-gray-900">Chuyến Đi Của Bạn</h1>
-                        <button data-action="toggle-create-form" class="box-btn bg-indigo-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-sm">
+                <div class="container mx-auto px-3 sm:px-4 py-5 sm:py-8 max-w-5xl">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-5 sm:mb-8">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Chuyến Đi Của Bạn</h1>
+                        <button data-action="toggle-create-form" class="box-btn bg-indigo-600 text-white px-3 sm:px-4 py-2 min-h-[40px] whitespace-nowrap rounded-md flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-sm">
                             <i data-lucide="plus" class="w-5 h-5"></i> Tạo Chuyến Đi
                         </button>
                     </div>
@@ -1089,7 +1453,7 @@
                                 <label class="block text-sm font-medium text-gray-700">Ảnh bìa (Tùy chọn)</label>
                                 <div class="flex gap-4 items-end">
                                     <div class="w-32 h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
-                                         <img id="preview-new-cover" src="${store.selectedImage || 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"150\" height=\"80\"><rect width=\"100%\" height=\"100%\" fill=\"#f1f5f9\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"central\" text-anchor=\"middle\" fill=\"#94a3b8\" font-size=\"14\" font-family=\"Arial,sans-serif\">Auto</text></svg>')}" class="w-full h-full object-cover" onerror="this.src=FALLBACK_IMAGE" />
+                                         <img id="preview-new-cover" src="${store.selectedImage || 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"150\" height=\"80\"><rect width=\"100%\" height=\"100%\" fill=\"#f1f5f9\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"central\" text-anchor=\"middle\" fill=\"#94a3b8\" font-size=\"14\" font-family=\"Arial,sans-serif\">Auto</text></svg>')}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                                          <button type="button" data-action="open-image-selector" class="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><i data-lucide="image" class="w-6 h-6"></i></button>
                                     </div>
                                     <div class="text-xs text-gray-500 pb-1">Bấm vào ảnh để thay đổi</div>
@@ -1108,41 +1472,21 @@
         };
 
         const renderTripDetail = () => {
-            const trip = store.trips.find(t => t.id === store.activeTripId);
+            const trip = getActiveTrip();
 if (!trip) {
 return `         <div class="p-8 text-center">             <div class="text-6xl mb-4">🦖</div>                     <div class="text-sm text-gray-500 mt-2">
                 Khủng long đang chạy.             </div>         </div>
     `;
 }
 
+            store.isReadOnly = !canEdit(trip);
+
             const expenses = trip.expenses || [];
             const advances = trip.advances || [];
             const members = trip.members || [];
             const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-            // Calculate Stats
-            const getMemberWeight = (mem) => mem.childRate || 1;
-
-            const memberStats = members.map(m => {
-                let paid = 0;
-                let consumed = 0;
-                let txCount = 0; // Transactions involved/paid
-                expenses.forEach(e => {
-                    if (e.payerId === m.id) { paid += e.amount; txCount++; }
-                    const involved = (e.involvedMemberIds && e.involvedMemberIds.length > 0) ? e.involvedMemberIds : members.map(mem => mem.id);
-                    if (involved.includes(m.id)) {
-                        const totalWeight = involved.reduce((sum, mid) => {
-                            const mem = members.find(member => member.id === mid);
-                            return sum + getMemberWeight(mem);
-                        }, 0);
-                        consumed += e.amount * (getMemberWeight(m) / totalWeight);
-                    }
-                });
-                    // Include advances: money the member put into the common pool (counts as paid)
-                    const advForMember = advances.filter(a => a.memberId === m.id).reduce((s, a) => s + (a.amount || 0), 0);
-                    paid += advForMember;
-                return { ...m, paid, consumed, balance: paid - consumed, txCount };
-            }).sort((a, b) => a.balance - b.balance);
+            const memberStats = computeMemberStats(trip);
 
             const expenseRowHtml = (e) => {
                 const payerMember = members.find(m => m.id === e.payerId);
@@ -1150,15 +1494,15 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 const count = e.involvedMemberIds?.length || members.length;
                 const iconName = e.categoryIcon || 'receipt';
                 return `
-                    <div class="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors group">
-                        <div class="flex items-start gap-3 flex-1 min-w-0 ${!store.isReadOnly ? 'cursor-pointer' : ''}" data-action="${!store.isReadOnly ? 'edit-expense' : ''}" data-id="${e.id}">
-                            <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600 mt-1 flex-shrink-0"><i data-lucide="${iconName}" class="w-5 h-5"></i></div>
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-3 sm:p-4 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors group">
+                        <div class="flex items-start gap-3 flex-1 min-w-0 ${!store.isReadOnly ? 'cursor-pointer' : ''}" data-action="${!store.isReadOnly ? 'edit-expense' : ''}" data-id="${escapeHtml(e.id)}">
+                            <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600 mt-1 flex-shrink-0"><i data-lucide="${escapeHtml(iconName)}" class="w-5 h-5"></i></div>
                             <div class="min-w-0">
                                 <h4 class="font-semibold text-gray-900 break-words">${escapeHtml(e.description)}</h4>
                                 <p class="text-sm text-gray-500"><span class="font-medium text-gray-700">${escapeHtml(payer)}</span> đã trả • <span class="text-gray-400 italic ml-1">${count === members.length ? 'Tất cả' : `Cho ${count} người`}</span></p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-3 flex-shrink-0"><span class="font-bold text-gray-900 whitespace-nowrap">${formatCurrency(e.amount)}</span>${!store.isReadOnly ? `<button data-action="edit-expense" data-id="${e.id}" aria-label="Sửa khoản chi" class="text-gray-400 hover:text-indigo-500 p-2"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button data-action="delete-expense" data-id="${e.id}" aria-label="Xóa khoản chi" class="text-gray-400 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}</div>
+                        <div class="flex items-center justify-between sm:justify-end gap-1 sm:gap-3 flex-shrink-0 pl-12 sm:pl-0"><span class="font-bold text-gray-900 whitespace-nowrap">${formatCurrency(e.amount)}</span><span class="flex items-center">${(e.receiptIds || []).length ? `<button data-action="view-receipts" data-id="${escapeHtml(e.id)}" aria-label="Xem ${(e.receiptIds || []).length} ảnh hóa đơn" title="Ảnh hóa đơn" class="icon-btn gap-0.5 text-gray-500 hover:text-indigo-600"><i data-lucide="paperclip" class="w-4 h-4"></i><span class="text-xs">${(e.receiptIds || []).length}</span></button>` : ''}${!store.isReadOnly ? `<span class="flex items-center"><button data-action="edit-expense" data-id="${escapeHtml(e.id)}" aria-label="Sửa khoản chi" class="icon-btn text-gray-400 hover:text-indigo-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button data-action="delete-expense" data-id="${escapeHtml(e.id)}" aria-label="Xóa khoản chi" class="icon-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></span>` : ''}</span></div>
                     </div>`;
             };
 
@@ -1179,7 +1523,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 });
 
                 const list = expenses.length === 0
-                    ? `<div class="text-center py-12 text-gray-400"><i data-lucide="receipt" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p>Chưa có khoản chi nào.</p></div>`
+                    ? `<div class="text-center py-12 text-gray-400"><i data-lucide="receipt" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p>Chưa có khoản chi nào.</p>${members.length === 0 && !store.isReadOnly ? `<p class="text-sm mt-1">Thêm thành viên trước để ghi khoản chi.</p><button data-action="switch-tab" data-tab="members" class="box-btn mt-4 inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"><i data-lucide="user-plus" class="w-4 h-4"></i> Thêm thành viên</button>` : ''}</div>`
                     : filtered.length === 0
                         ? `<div class="text-center py-10 text-gray-400"><i data-lucide="search-x" class="w-10 h-10 mx-auto mb-2 opacity-30"></i><p>Không tìm thấy khoản chi phù hợp.</p></div>`
                         : order.map(key => `
@@ -1198,7 +1542,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                             </div>
                         </div>
                         <div class="flex justify-end mt-1.5">
-                            <button data-action="advance-prompt" class="text-xs font-medium text-amber-600 hover:text-amber-700 flex items-center gap-1"><i data-lucide="wallet" class="w-3.5 h-3.5"></i> Ứng tiền trước</button>
+                            <button data-action="open-advance-modal" class="text-xs font-medium text-amber-600 hover:text-amber-700 flex items-center gap-1"><i data-lucide="wallet" class="w-3.5 h-3.5"></i> Ứng tiền trước</button>
                         </div>
                     </div>` : '';
 
@@ -1226,7 +1570,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
 
                     if (amount > 0) {
-                        suggestions.push({ from: debtor.name, to: creditor.name, amount });
+                        suggestions.push({ from: debtor.name, to: creditor.name, fromId: debtor.id, toId: creditor.id, amount });
                     }
 
                     debtor.balance += amount;
@@ -1243,7 +1587,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                         <div class="flex items-center justify-between gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg">
                             <div class="flex items-center gap-2 min-w-0">
                                 <div class="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white ${m.balance >= 0 ? 'bg-green-500' : 'bg-red-500'}">
-                                     <i data-lucide="${m.icon || 'user'}" class="w-3.5 h-3.5"></i>
+                                     <i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-3.5 h-3.5"></i>
                                 </div>
                                 <div class="min-w-0">
                                     <div class="font-semibold text-sm leading-tight truncate" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</div>
@@ -1261,13 +1605,18 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                         </div>
                         <div class="divide-y divide-gray-100">
                             ${suggestions.map(s => `
-                            <div class="px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-gray-50">
-                                <div class="flex items-center gap-2 min-w-0 text-sm">
-                                    <span class="font-bold text-red-600 truncate" title="${escapeHtml(s.from)}">${escapeHtml(s.from)}</span>
+                            <div class="px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 hover:bg-gray-50">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 text-sm">
+                                    <span class="font-bold text-red-600 break-words">${escapeHtml(s.from)}</span>
                                     <i data-lucide="arrow-right" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
-                                    <span class="font-bold text-green-600 truncate" title="${escapeHtml(s.to)}">${escapeHtml(s.to)}</span>
+                                    <span class="font-bold text-green-600 break-words">${escapeHtml(s.to)}</span>
                                 </div>
-                                <div class="font-bold text-gray-800 whitespace-nowrap flex-shrink-0">${formatCurrency(s.amount)}</div>
+                                <div class="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
+                                    <span class="font-bold text-gray-800 whitespace-nowrap">${formatCurrency(s.amount)}</span>
+                                    ${!store.isReadOnly ? (store.bankAccounts[s.toId]
+                                        ? `<button data-action="open-pay-qr" data-from="${escapeHtml(s.fromId)}" data-to="${escapeHtml(s.toId)}" data-amount="${Math.round(s.amount)}" class="box-btn-ghost flex items-center gap-1.5 px-3 min-h-[40px] text-xs"><i data-lucide="qr-code" class="w-4 h-4"></i> QR</button>`
+                                        : `<button data-action="open-bank-modal" data-id="${escapeHtml(s.toId)}" class="flex items-center gap-1.5 px-2 min-h-[40px] text-xs text-gray-400 hover:text-indigo-600" title="Thêm số tài khoản của ${escapeHtml(s.to)} để tạo QR"><i data-lucide="landmark" class="w-4 h-4"></i> Chưa có STK</button>`) : ''}
+                                </div>
                             </div>
                             `).join('')}
                         </div>
@@ -1289,6 +1638,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             };
 
             const renderReportTab = () => {
+                // Average share of one adult: children count as their weight (1/2, 1/4)
+                const totalWeight = members.reduce((sum, m) => sum + memberWeight(m), 0);
+                const hasChildren = members.some(m => m.childRate);
                 if (members.length === 0) return `<div class="text-center py-12 text-gray-400"><i data-lucide="bar-chart-3" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p>Chưa có dữ liệu để tổng kết.</p><p class="text-sm mt-1">Thêm thành viên và khoản chi để xem báo cáo.</p></div>`;
                 const topSpender = [...memberStats].sort((a, b) => b.paid - a.paid)[0];
                 const mostActive = [...memberStats].sort((a, b) => b.txCount - a.txCount)[0];
@@ -1307,32 +1659,28 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                     <tr>
                                         <th class="px-4 py-3 sticky-col-left bg-gray-50 shadow-right min-w-[150px]">Khoản chi</th>
                                         <th class="px-4 py-3 text-right whitespace-nowrap bg-gray-50">Tổng tiền</th>
-                                        ${members.map(m => `<th class="px-4 py-3 text-center whitespace-nowrap min-w-[100px] bg-gray-50 border-l border-gray-200"><div class="flex flex-col items-center gap-1"><i data-lucide="${m.icon || 'user'}" class="w-4 h-4 text-gray-400"></i><span>${m.name}</span></div></th>`).join('')}
+                                        ${members.map(m => `<th class="px-4 py-3 text-center whitespace-nowrap min-w-[100px] bg-gray-50 border-l border-gray-200"><div class="flex flex-col items-center gap-1"><i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-4 h-4 text-gray-400"></i><span>${escapeHtml(m.name)}</span></div></th>`).join('')}
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
                                     ${filteredExpenses.length === 0 ? `<tr><td colspan="${members.length + 2}" class="px-6 py-8 text-center text-gray-400 italic">Không tìm thấy khoản chi nào.</td></tr>` :
                         filteredExpenses.map(e => {
-                            const involved = e.involvedMemberIds && e.involvedMemberIds.length > 0 ? e.involvedMemberIds : members.map(m => m.id);
                             const icon = e.categoryIcon || 'receipt';
                             return `
                                             <tr class="hover:bg-gray-50 transition-colors">
-                                                <td class="px-4 py-3 font-medium text-gray-900 sticky-col-left bg-white shadow-right min-w-[160px] max-w-[260px] align-top" title="${e.description}">
+                                                <td class="px-4 py-3 font-medium text-gray-900 sticky-col-left bg-white shadow-right min-w-[160px] max-w-[260px] align-top" title="${escapeHtml(e.description)}">
                                                     <div class="flex items-start gap-2">
-                                                        <i data-lucide="${icon}" class="w-3 h-3 mt-0.5 text-indigo-500 flex-shrink-0"></i>
-                                                        <span class="break-words">${e.description}</span>
+                                                        <i data-lucide="${escapeHtml(icon)}" class="w-3 h-3 mt-0.5 text-indigo-500 flex-shrink-0"></i>
+                                                        <span class="break-words">${escapeHtml(e.description)}</span>
                                                     </div>
                                                     <div class="text-[10px] text-gray-400 font-normal mt-0.5 ml-5">${new Date(e.date).toLocaleDateString('vi-VN')}</div>
                                                 </td>
                                                 <td class="px-4 py-3 text-right text-indigo-600 font-medium whitespace-nowrap">${formatCurrency(e.amount)}</td>
                                                 ${(() => {
-                                const totalWeight = involved.reduce((sum, mid) => {
-                                    const mem = members.find(member => member.id === mid);
-                                    return sum + (mem.childRate || 1);
-                                }, 0);
+                                const shares = splitExpense(e, members);
                                 return members.map(m => {
-                                    const isInvolved = involved.includes(m.id);
-                                    const splitAmount = isInvolved ? e.amount * ((m.childRate || 1) / totalWeight) : 0;
+                                    const isInvolved = m.id in shares;
+                                    const splitAmount = shares[m.id] || 0;
                                     return `
                                                         <td class="px-4 py-3 text-center border-l border-gray-100">
                                                             ${isInvolved
@@ -1356,27 +1704,65 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
                 return `
                     <div class="space-y-6 animate-fade-in-up">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200"><p class="text-blue-600 text-xs font-bold uppercase">Tổng Chi Phí</p><p class="text-2xl font-bold text-blue-900 mt-1">${formatCurrency(totalSpent)}</p></div>
-                            <div class="bg-purple-50 p-4 rounded-xl border border-purple-200"><p class="text-purple-600 text-xs font-bold uppercase">Bình Quân/Người</p><p class="text-2xl font-bold text-purple-900 mt-1">${formatCurrency(members.length ? totalSpent / members.length : 0)}</p></div>
-                            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200"><p class="text-amber-600 text-xs font-bold uppercase">Top Chi Tiền</p><p class="text-xl font-bold text-amber-900 mt-1 truncate">${topSpender && topSpender.paid > 0 ? topSpender.name : '---'}</p></div>
-                            <div class="bg-green-50 p-4 rounded-xl border border-green-200"><p class="text-green-600 text-xs font-bold uppercase">Top Giao Dịch</p><p class="text-xl font-bold text-green-900 mt-1 truncate">${mostActive && mostActive.txCount > 0 ? mostActive.name : '---'}</p></div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+                            <div class="bg-blue-50 p-3 sm:p-4 rounded-xl border border-blue-200"><p class="text-blue-600 text-xs font-bold uppercase">Tổng Chi Phí</p><p class="text-lg sm:text-2xl font-bold text-blue-900 mt-1 break-words">${formatCurrency(totalSpent)}</p></div>
+                            <div class="bg-purple-50 p-3 sm:p-4 rounded-xl border border-purple-200"><p class="text-purple-600 text-xs font-bold uppercase">${hasChildren ? 'Bình Quân/Người Lớn' : 'Bình Quân/Người'}</p><p class="text-lg sm:text-2xl font-bold text-purple-900 mt-1 break-words">${formatCurrency(totalWeight ? totalSpent / totalWeight : 0)}</p>${hasChildren ? '<p class="text-[10px] text-purple-600 mt-0.5">Trẻ em tính theo hệ số 1/2, 1/4</p>' : ''}</div>
+                            <div class="bg-amber-50 p-3 sm:p-4 rounded-xl border border-amber-200"><p class="text-amber-600 text-xs font-bold uppercase">Top Chi Tiền</p><p class="text-xl font-bold text-amber-900 mt-1 truncate">${topSpender && topSpender.paid > 0 ? escapeHtml(topSpender.name) : '---'}</p></div>
+                            <div class="bg-green-50 p-3 sm:p-4 rounded-xl border border-green-200"><p class="text-green-600 text-xs font-bold uppercase">Top Giao Dịch</p><p class="text-xl font-bold text-green-900 mt-1 truncate">${mostActive && mostActive.txCount > 0 ? escapeHtml(mostActive.name) : '---'}</p></div>
                         </div>
 
                         ${matrixHtml}
 
                         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50"><h3 class="font-bold text-gray-800">Tổng kết công nợ</h3></div>
-                            <div class="overflow-x-auto"><table class="w-full text-sm text-left">
-                                <thead class="text-xs text-gray-500 uppercase bg-gray-50"><tr><th class="px-6 py-3">Thành viên</th><th class="px-6 py-3 text-right">Đã Chi</th><th class="px-6 py-3 text-right">Sử Dụng</th><th class="px-6 py-3 text-right">Chênh Lệch</th></tr></thead>
+                            <div class="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50"><h3 class="font-bold text-gray-800">Tổng kết công nợ</h3></div>
+                            <div class="sm:hidden divide-y divide-gray-100">${memberStats.map(m => `
+                                <div class="px-3 py-2.5 bg-white">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="font-medium text-gray-900 flex items-start gap-2 min-w-0"><i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0"></i><span class="break-words min-w-0">${escapeHtml(m.name)}</span></span>
+                                        <span class="font-bold whitespace-nowrap ${m.balance >= 0 ? 'text-green-600' : 'text-red-600'}">${m.balance > 0 ? '+' : ''}${formatCurrency(m.balance)}</span>
+                                    </div>
+                                    <div class="mt-1 pl-6 flex flex-wrap gap-x-4 text-xs text-gray-500"><span>Đã chi <span class="text-indigo-600">${formatCurrency(m.paid)}</span></span><span>Sử dụng <span class="text-pink-600">${formatCurrency(m.consumed)}</span></span></div>
+                                </div>`).join('')}</div>
+                            <div class="hidden sm:block overflow-x-auto"><table class="w-full text-xs sm:text-sm text-left">
+                                <thead class="text-xs text-gray-500 uppercase bg-gray-50"><tr><th class="px-2 sm:px-6 py-3">Thành viên</th><th class="px-2 sm:px-6 py-3 text-right">Đã Chi</th><th class="px-2 sm:px-6 py-3 text-right">Sử Dụng</th><th class="px-2 sm:px-6 py-3 text-right">Chênh Lệch</th></tr></thead>
                                 <tbody>${memberStats.map(m => `
                                     <tr class="bg-white border-b border-gray-100 hover:bg-gray-50">
-                                        <td class="px-6 py-4 font-medium text-gray-900 flex items-center gap-2"><i data-lucide="${m.icon || 'user'}" class="w-4 h-4 text-gray-400"></i> ${m.name}</td>
-                                        <td class="px-6 py-4 text-right text-indigo-600">${formatCurrency(m.paid)}</td>
-                                        <td class="px-6 py-4 text-right text-pink-600">${formatCurrency(m.consumed)}</td>
-                                        <td class="px-6 py-4 text-right font-bold ${m.balance >= 0 ? 'text-green-600' : 'text-red-600'}">${m.balance > 0 ? '+' : ''}${formatCurrency(m.balance)}</td>
+                                        <td class="px-2 sm:px-6 py-3 sm:py-4 font-medium text-gray-900 flex items-center gap-2"><i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-4 h-4 text-gray-400"></i> ${escapeHtml(m.name)}</td>
+                                        <td class="px-2 sm:px-6 py-3 sm:py-4 text-right text-indigo-600">${formatCurrency(m.paid)}</td>
+                                        <td class="px-2 sm:px-6 py-3 sm:py-4 text-right text-pink-600">${formatCurrency(m.consumed)}</td>
+                                        <td class="px-2 sm:px-6 py-3 sm:py-4 text-right font-bold ${m.balance >= 0 ? 'text-green-600' : 'text-red-600'}">${m.balance > 0 ? '+' : ''}${formatCurrency(m.balance)}</td>
                                     </tr>`).join('')}</tbody>
                             </table></div>
+                        </div>
+                    </div>`;
+            };
+
+            const memberName = (id) => members.find(m => m.id === id)?.name || '?';
+            const advancesListHtml = () => {
+                if (advances.length === 0) return '';
+                return `
+                    <div class="mt-6">
+                        <h3 class="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><i data-lucide="wallet" class="w-4 h-4"></i> Các khoản ứng tiền</h3>
+                        <div class="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+                            ${advances.map(a => {
+                                const counted = isCountedAdvance(a, members);
+                                const receiverPicker = !counted && !store.isReadOnly
+                                    ? `<select data-advance-receiver="${escapeHtml(a.id)}" aria-label="Chọn người nhận" class="rounded-md border border-amber-300 text-xs p-1"><option value="">Chọn người nhận...</option>${members.filter(m => m.id !== a.memberId).map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('')}</select>`
+                                    : '';
+                                return `
+                                <div class="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm">
+                                    <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                                        <span class="font-medium truncate">${escapeHtml(memberName(a.memberId))}</span>
+                                        <i data-lucide="arrow-right" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
+                                        ${counted ? `<span class="font-medium truncate">${escapeHtml(memberName(a.receiverId))}</span>` : `<span class="text-xs text-amber-600 font-medium">Chưa chọn người nhận — chưa tính vào công nợ</span>`}
+                                        ${receiverPicker}
+                                    </div>
+                                    <div class="flex items-center gap-2 flex-shrink-0">
+                                        <span class="font-bold text-gray-800 whitespace-nowrap">${formatCurrency(a.amount || 0)}</span>
+                                        ${!store.isReadOnly ? `<button data-action="delete-advance" data-id="${escapeHtml(a.id)}" aria-label="Xóa khoản ứng" class="icon-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                                    </div>
+                                </div>`;
+                            }).join('')}
                         </div>
                     </div>`;
             };
@@ -1384,7 +1770,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const renderMembersTab = () => `
                 <div>
                     ${!store.isReadOnly ? `
-                    <form data-action="add-member" class="mb-6 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <form data-action="add-member" class="mb-6 bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
                         <h3 class="text-sm font-medium text-gray-700 mb-3">Thêm thành viên mới</h3>
                         <div class="flex flex-col gap-4">
                             <div>
@@ -1393,7 +1779,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                      ${MEMBER_ICONS.map(icon => `
                                          <button type="button" data-action="select-member-icon" data-value="${icon}" 
                                              class="p-2 rounded-full border ${store.newMemberIcon === icon ? 'bg-indigo-100 border-indigo-500 text-indigo-600' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'} transition-all">
-                                             <i data-lucide="${icon}" class="w-5 h-5"></i>
+                                             <i data-lucide="${escapeHtml(icon)}" class="w-5 h-5"></i>
                                          </button>
                                      `).join('')}
                                  </div>
@@ -1415,9 +1801,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                     </button>
                                 </div>
                             </div>
-                            <div class="flex gap-2">
-                                <input type="text" id="new-member-input" value="${escapeHtml(store.newMemberName)}" placeholder="Tên thành viên..." class="flex-1 rounded-md border border-gray-300 p-2 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                <button type="submit" class="box-btn bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center gap-2">
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <input type="text" id="new-member-input" value="${escapeHtml(store.newMemberName)}" placeholder="Tên thành viên..." class="flex-1 min-w-0 w-full rounded-md border border-gray-300 p-2 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                <button type="submit" class="box-btn bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium flex items-center justify-center gap-2">
                                     <i data-lucide="plus" class="w-4 h-4"></i> Thêm
                                 </button>
                             </div>
@@ -1429,34 +1815,36 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${members.map(m => {
-                            const advForMember = advances.filter(a => a.memberId === m.id).reduce((s, a) => s + (a.amount || 0), 0);
+                            const st = memberStats.find(x => x.id === m.id) || {};
                             return `
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-indigo-600">
-                                    <i data-lucide="${m.icon || 'user'}" class="w-5 h-5"></i>
+                        <div class="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                <div class="w-10 h-10 flex-shrink-0 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-indigo-600">
+                                    <i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-5 h-5"></i>
                                 </div>
-                                <div class="flex flex-col">
-                                    <span class="font-medium">${m.name}</span>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="font-medium truncate" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</span>
                                     ${m.childRate ? `<span class="text-xs text-amber-600 font-medium">Trẻ em (1/${m.childRate === 0.5 ? '2' : '4'})</span>` : ''}
-                                    <span class="text-xs text-gray-500">Ứng trước: ${formatCurrency(advForMember)}</span>
+                                    ${st.advanceGiven || st.advanceHeld ? `<span class="text-xs text-gray-500">${st.advanceGiven ? `Đã ứng: ${formatCurrency(st.advanceGiven)}` : ''}${st.advanceGiven && st.advanceHeld ? ' · ' : ''}${st.advanceHeld ? `Đang giữ: ${formatCurrency(st.advanceHeld)}` : ''}</span>` : ''}
                                 </div>
                             </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-1 flex-shrink-0 ml-auto">
                                 ${store.editingChildMemberId === m.id ? `
-                                    <button data-action="save-child-rate" data-id="${m.id}" data-value="" class="px-2 py-1 rounded text-xs font-medium border ${!m.childRate ? 'bg-indigo-100 border-indigo-500 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">Lớn</button>
-                                    <button data-action="save-child-rate" data-id="${m.id}" data-value="0.5" class="px-2 py-1 rounded text-xs font-medium border ${m.childRate === 0.5 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/2</button>
-                                    <button data-action="save-child-rate" data-id="${m.id}" data-value="0.25" class="px-2 py-1 rounded text-xs font-medium border ${m.childRate === 0.25 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/4</button>
-                                    <button data-action="cancel-edit-child" class="text-gray-400 hover:text-gray-600 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="" class="min-h-[40px] px-2.5 rounded text-xs font-medium border ${!m.childRate ? 'bg-indigo-100 border-indigo-500 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">Lớn</button>
+                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="0.5" class="min-h-[40px] px-2.5 rounded text-xs font-medium border ${m.childRate === 0.5 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/2</button>
+                                    <button data-action="save-child-rate" data-id="${escapeHtml(m.id)}" data-value="0.25" class="min-h-[40px] px-2.5 rounded text-xs font-medium border ${m.childRate === 0.25 ? 'bg-amber-100 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-100'}">1/4</button>
+                                    <button data-action="cancel-edit-child" aria-label="Hủy" class="icon-btn text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-4 h-4"></i></button>
                                 ` : `
-                                    ${!store.isReadOnly ? `<button data-action="edit-child-rate" data-id="${m.id}" class="text-gray-400 hover:text-indigo-500 p-1 rounded-full hover:bg-indigo-50 transition-colors" title="Sửa loại thành viên"><i data-lucide="edit-2" class="w-4 h-4"></i></button>` : ''}
-                                    ${!store.isReadOnly ? `<button data-action="add-advance" data-id="${m.id}" class="text-indigo-600 hover:text-indigo-800 p-2 rounded-md text-sm">Ứng tiền</button>` : ''}
-                                    ${!store.isReadOnly ? `<button data-action="remove-member" data-id="${m.id}" class="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="edit-child-rate" data-id="${escapeHtml(m.id)}" class="icon-btn text-gray-400 hover:text-indigo-500 rounded-full hover:bg-indigo-50 transition-colors" title="Sửa loại thành viên" aria-label="Sửa loại thành viên"><i data-lucide="edit-2" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="open-bank-modal" data-id="${escapeHtml(m.id)}" class="icon-btn rounded-md ${store.bankAccounts[m.id] ? 'text-green-600' : 'text-gray-400 hover:text-indigo-500'}" title="${store.bankAccounts[m.id] ? 'Tài khoản ngân hàng: ' + escapeHtml(store.bankAccounts[m.id].bankName) : 'Thêm tài khoản ngân hàng'}" aria-label="Tài khoản ngân hàng"><i data-lucide="landmark" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="open-advance-modal" data-id="${escapeHtml(m.id)}" class="icon-btn text-indigo-600 hover:text-indigo-800 rounded-md" title="Ứng tiền" aria-label="Ứng tiền"><i data-lucide="wallet" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="remove-member" data-id="${escapeHtml(m.id)}" aria-label="Xóa thành viên" class="icon-btn text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                                 `}
                             </div>
                         </div>`;
                         }).join('')}
                     </div>
+                    ${advancesListHtml()}
                 </div>`;
 
             let content = '';
@@ -1465,40 +1853,39 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             else if (store.activeTab === 'report') content = renderReportTab();
             else if (store.activeTab === 'members') content = renderMembersTab();
 
-            const tabClass = (tab) => `flex-1 py-4 px-4 text-sm font-medium text-center border-b-2 whitespace-nowrap ${store.activeTab === tab ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`;
+            const tabClass = (tab) => `py-2.5 sm:py-4 px-1 sm:px-4 text-[11px] sm:text-sm font-medium text-center border-b-2 whitespace-nowrap ${store.activeTab === tab ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`;
 
             return `
-                <div class="container mx-auto px-4 py-6 max-w-4xl animate-fade-in-down">
-                    ${store.isReadOnly ? `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between"><div class="flex items-center gap-2 text-blue-700"><i data-lucide="lock" class="w-4 h-4"></i><span class="text-sm font-medium">View Only Mode.</span></div><button data-action="enable-editing" class="bg-white text-blue-600 border border-blue-200 px-3 py-1 rounded text-xs font-medium hover:bg-blue-50 flex items-center gap-1"><i data-lucide="unlock" class="w-3 h-3"></i> Chỉnh sửa</button></div>` : ''}
-                    <div class="mb-6">
-                        <button data-action="back-to-list" class="text-gray-500 hover:text-indigo-600 flex items-center mb-4"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Quay lại</button>
+                <div class="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-4xl animate-fade-in-down">
+                    ${store.isReadOnly ? `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-2 text-blue-700"><i data-lucide="lock" class="w-4 h-4 flex-shrink-0"></i><span class="text-sm font-medium">${isLegacyTrip(trip) ? 'Chuyến đi này chưa có chủ.' : 'Bạn đang xem. Xin link sửa từ người tạo để chỉnh sửa.'}</span></div>${isLegacyTrip(trip) && store.uid ? `<button data-action="claim-trip" class="bg-white text-blue-600 border border-blue-200 px-3 py-1 rounded text-xs font-medium hover:bg-blue-50 flex items-center gap-1 whitespace-nowrap"><i data-lucide="key-round" class="w-3 h-3"></i> Nhận quyền sở hữu</button>` : ''}</div>` : ''}
+                    <div class="mb-3 sm:mb-4">
+                        <button data-action="back-to-list" class="text-gray-500 hover:text-indigo-600 flex items-center mb-3 sm:mb-4 min-h-[40px]"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Quay lại</button>
                         <div class="bg-white rounded-2xl shadow-md overflow-hidden relative group">
-                            <div class="h-48 w-full relative">
-                                <img src="${trip.coverImage}" class="w-full h-full object-cover" onerror="this.src=FALLBACK_IMAGE" />
-                                <div class="absolute inset-0 bg-black/30 flex items-end p-6">
-                                    <div class="min-w-0"><h1 class="text-3xl font-bold text-white mb-1 break-words">${escapeHtml(trip.name)}</h1><p class="text-white/90 text-sm flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> ${members.length} thành viên • Tổng chi: <span class="font-bold text-green-300">${formatCurrency(totalSpent)}</span></p></div>
+                            <div class="relative w-full min-h-[9rem] sm:min-h-[12rem] flex flex-col">
+                                <img src="${escapeHtml(coverSrc(trip.coverImage))}" class="absolute inset-0 w-full h-full object-cover" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
+                                <div class="absolute inset-0 bg-black/30"></div>
+                                <div class="relative flex justify-end gap-1.5 sm:gap-2 p-2 sm:p-4">
+                                     ${!store.isReadOnly ? `<button data-action="open-edit-trip" title="Sửa chuyến đi" aria-label="Sửa chuyến đi" class="icon-btn bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="pencil" class="w-5 h-5"></i></button>` : ''}
+                                     ${!store.isReadOnly ? `<button data-action="open-image-selector" data-mode="update" title="Đổi ảnh bìa" aria-label="Đổi ảnh bìa" class="icon-btn bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="image" class="w-5 h-5"></i></button>` : ''}
+                                     <button data-action="share-trip" title="Chia sẻ" aria-label="Chia sẻ" class="icon-btn bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="share-2" class="w-5 h-5"></i></button>
                                 </div>
-                                <div class="absolute top-4 right-4 flex gap-2">
-                                     ${!store.isReadOnly ? `<button data-action="open-edit-trip" title="Sửa chuyến đi" aria-label="Sửa chuyến đi" class="bg-white/20 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="pencil" class="w-5 h-5"></i></button>` : ''}
-                                     ${!store.isReadOnly ? `<button data-action="open-image-selector" data-mode="update" title="Đổi ảnh bìa" aria-label="Đổi ảnh bìa" class="bg-white/20 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="image" class="w-5 h-5"></i></button>` : ''}
-                                     <button data-action="share-trip" title="Chia sẻ" aria-label="Chia sẻ" class="bg-white/20 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/40 transition-all"><i data-lucide="share-2" class="w-5 h-5"></i></button>
-                                </div>
-                            </div>
-                            <div class="flex border-b border-gray-200 overflow-x-auto">
-                                <button data-action="switch-tab" data-tab="expenses" class="${tabClass('expenses')}"><div class="flex items-center justify-center gap-2"><i data-lucide="receipt" class="w-4 h-4"></i> Chi Tiêu</div></button>
-                                <button data-action="switch-tab" data-tab="balances" class="${tabClass('balances')}"><div class="flex items-center justify-center gap-2"><i data-lucide="wallet" class="w-4 h-4"></i> Công Nợ</div></button>
-                                <button data-action="switch-tab" data-tab="report" class="${tabClass('report')}"><div class="flex items-center justify-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Tổng kết</div></button>
-                                <button data-action="switch-tab" data-tab="members" class="${tabClass('members')}"><div class="flex items-center justify-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> Thành Viên</div></button>
+                                <div class="relative mt-auto px-4 pb-4 sm:px-6 sm:pb-6"><div class="min-w-0"><h1 class="text-2xl sm:text-3xl font-bold text-white mb-1 break-words line-clamp-2">${escapeHtml(trip.name)}</h1><p class="text-white/90 text-sm flex flex-wrap items-center gap-x-2 gap-y-0.5"><span class="flex items-center gap-1.5"><i data-lucide="users" class="w-4 h-4"></i> ${members.length} thành viên</span><span>Tổng chi: <span class="font-bold text-green-300">${formatCurrency(totalSpent)}</span></span></p></div></div>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[400px]">${content}</div>
+                    <div class="sticky top-0 z-40 grid grid-cols-4 bg-white border border-gray-200 shadow-sm mb-3 sm:mb-4">
+                        <button data-action="switch-tab" data-tab="expenses" class="${tabClass('expenses')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="receipt" class="w-4 h-4"></i> Chi Tiêu</div></button>
+                        <button data-action="switch-tab" data-tab="balances" class="${tabClass('balances')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="wallet" class="w-4 h-4"></i> Công Nợ</div></button>
+                        <button data-action="switch-tab" data-tab="report" class="${tabClass('report')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Tổng kết</div></button>
+                        <button data-action="switch-tab" data-tab="members" class="${tabClass('members')}"><div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"><i data-lucide="users" class="w-4 h-4"></i> Thành Viên</div></button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 min-h-[400px]">${content}</div>
                 </div>`;
         };
 
         const renderExpenseModal = () => {
             if (!store.expenseModalOpen) return '';
-            const trip = store.trips.find(t => t.id === store.activeTripId);
+            const trip = getActiveTrip();
             if (!trip) return '';
             const members = trip.members || [];
             const involvedIds = store.expenseForm.involvedIds.length > 0 ? store.expenseForm.involvedIds : members.map(m => m.id);
@@ -1506,10 +1893,10 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
             return `
                 <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="modal-wrap flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" data-action="close-modal"></div>
                         <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+                        <div class="modal-panel inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
                             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <div class="flex justify-between items-center mb-4 border-b pb-2"><h3 id="modal-title" class="text-lg leading-6 font-medium text-gray-900">${store.editingExpenseId ? 'Sửa Khoản Chi' : 'Thêm Khoản Chi Mới'}</h3><button data-action="close-modal" aria-label="Đóng" class="text-gray-400 hover:text-gray-500"><i data-lucide="x" class="w-6 h-6"></i></button></div>
                                 <div class="space-y-4">
@@ -1522,7 +1909,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                             ${[50000, 100000, 200000, 500000, 1000000].map(v => `<button type="button" data-action="quick-amount" data-value="${v}" class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600">${v >= 1000000 ? (v / 1000000) + 'tr' : (v / 1000) + 'k'}</button>`).join('')}
                                         </div>
                                     </div>
-                                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Người trả</label><select id="ex-payer" class="w-full rounded-md border border-gray-300 p-2"><option value="">-- Chọn người trả --</option>${members.map(m => `<option value="${m.id}" ${m.id === store.expenseForm.payerId ? 'selected' : ''}>${m.name}</option>`).join('')}</select></div>
+                                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Người trả</label><select id="ex-payer" class="w-full rounded-md border border-gray-300 p-2"><option value="">-- Chọn người trả --</option>${members.map(m => `<option value="${m.id}" ${m.id === store.expenseForm.payerId ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}</select></div>
                                     
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Loại chi tiêu</label>
@@ -1537,11 +1924,28 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                         </div>
                                     </div>
 
-                                    <div><div class="flex justify-between items-center mb-2"><label class="block text-sm font-medium text-gray-700">Thành viên tham gia</label><button data-action="toggle-select-all" class="text-xs text-indigo-600 font-medium hover:underline">${involvedIds.length === members.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button></div><div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">${members.map(m => { const isSelected = involvedIds.includes(m.id); return `<button type="button" data-action="toggle-involved" data-id="${m.id}" class="px-3 py-1.5 rounded-full text-sm font-medium border flex items-center gap-1 ${isSelected ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-gray-600 border-gray-200'}">${isSelected ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''} <span class="flex items-center gap-1"><i data-lucide="${m.icon || 'user'}" class="w-3 h-3"></i> ${m.name}</span>${m.childRate ? `<span class="text-[10px] text-amber-500 ml-0.5">(1/${m.childRate === 0.5 ? '2' : '4'})</span>` : ''}</button>`; }).join('')}</div></div>
+                                    ${(() => {
+                                        const receipts = store.expenseForm.receipts || [];
+                                        return `<div>
+                                        <div class="flex justify-between items-center mb-2"><label class="block text-sm font-medium text-gray-700">Ảnh hóa đơn</label><span class="text-xs text-gray-400">${receipts.length}/${MAX_RECEIPTS_PER_EXPENSE}</span></div>
+                                        <div class="flex flex-wrap gap-2">
+                                            ${receipts.map(r => {
+                                                const src = r.data || store.receiptCache[r.id];
+                                                return `<div class="relative w-24 h-24 border border-gray-200 bg-gray-50 overflow-hidden">
+                                                    ${src && src !== 'error' ? `<img src="${escapeHtml(src)}" alt="Ảnh hóa đơn" class="w-full h-full object-cover" />` : `<div class="w-full h-full flex items-center justify-center text-gray-400 text-xs">${src === 'error' ? 'Lỗi ảnh' : '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>'}</div>`}
+                                                    <button type="button" data-action="remove-receipt" data-id="${escapeHtml(r.id)}" aria-label="Bỏ ảnh này" class="icon-btn absolute top-0 right-0 bg-black/50 text-white hover:bg-black/70"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                                </div>`;
+                                            }).join('')}
+                                            ${receipts.length < MAX_RECEIPTS_PER_EXPENSE ? `<label for="receipt-file" class="w-24 h-24 border-2 border-dashed border-gray-300 text-gray-500 hover:text-indigo-600 flex flex-col items-center justify-center gap-1 text-xs text-center cursor-pointer"><i data-lucide="camera" class="w-5 h-5"></i>Thêm ảnh</label><input type="file" id="receipt-file" accept="image/*" multiple class="sr-only" />` : ''}
+                                        </div>
+                                    </div>`;
+                                    })()}
+
+                                    <div><div class="flex justify-between items-center mb-2"><label class="block text-sm font-medium text-gray-700">Thành viên tham gia</label><button data-action="toggle-select-all" class="text-xs text-indigo-600 font-medium hover:underline">${involvedIds.length === members.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button></div><div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">${members.map(m => { const isSelected = involvedIds.includes(m.id); return `<button type="button" data-action="toggle-involved" data-id="${escapeHtml(m.id)}" class="px-3 py-1.5 rounded-full text-sm font-medium border flex items-center gap-1 ${isSelected ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-gray-600 border-gray-200'}">${isSelected ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''} <span class="flex items-center gap-1"><i data-lucide="${escapeHtml(m.icon || 'user')}" class="w-3 h-3"></i> ${escapeHtml(m.name)}</span>${m.childRate ? `<span class="text-[10px] text-amber-500 ml-0.5">(1/${m.childRate === 0.5 ? '2' : '4'})</span>` : ''}</button>`; }).join('')}</div></div>
                                 </div>
                             </div>
                             <p id="ex-form-error" class="hidden px-4 sm:px-6 pt-3 text-sm text-red-600 font-medium"></p>
-                            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"><button type="button" data-action="save-expense" class="box-btn w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Lưu</button><button type="button" data-action="close-modal" class="box-btn-ghost mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Hủy</button></div>
+                            <div class="modal-actions bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"><button type="button" data-action="save-expense" class="box-btn w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Lưu</button><button type="button" data-action="close-modal" class="box-btn-ghost mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Hủy</button></div>
                         </div>
                     </div>
                 </div>`;
@@ -1551,9 +1955,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             if (!store.imageSelectionModalOpen) return '';
             return `
                 <div class="fixed inset-0 z-[60] overflow-y-auto" role="dialog" aria-modal="true">
-                    <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-image-selector"></div>
-                        <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-4 sm:p-6">
                             <h3 class="text-lg font-bold text-gray-900 mb-4">Chọn Ảnh Bìa</h3>
                             
                             <div class="mb-6">
@@ -1561,7 +1965,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                                     ${GALLERIES.map(url => `
                                         <div class="relative aspect-video rounded-lg overflow-hidden cursor-pointer group" data-action="select-gallery-image" data-url="${url}">
-                                            <img src="${url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform" onerror="this.src=FALLBACK_IMAGE" />
+                                            <img src="${url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                                             ${store.selectedImage === url ? '<div class="absolute inset-0 bg-indigo-600/40 flex items-center justify-center"><i data-lucide="check" class="text-white w-8 h-8"></i></div>' : ''}
                                         </div>
                                     `).join('')}
@@ -1570,10 +1974,11 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
                             <div class="mb-6">
                                 <h4 class="text-sm font-medium text-gray-700 mb-2">Hoặc tải ảnh lên</h4>
-                                <input type="file" id="custom-image-upload" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                                <label for="custom-image-upload" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] cursor-pointer text-sm"><i data-lucide="upload" class="w-4 h-4"></i> Chọn ảnh từ máy</label>
+                                <input type="file" id="custom-image-upload" accept="image/*" class="sr-only"/>
                             </div>
 
-                            <div class="flex justify-end gap-2">
+                            <div class="modal-actions flex justify-end gap-2">
                                 <button data-action="close-image-selector" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">Hủy</button>
                                 <button data-action="confirm-image-selection" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Chọn ảnh này</button>
                             </div>
@@ -1585,14 +1990,14 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
         const renderEditTripModal = () => {
             if (!store.editTripModalOpen) return '';
-            const trip = store.trips.find(t => t.id === store.activeTripId);
+            const trip = getActiveTrip();
             if (!trip) return '';
             const startDate = store.editTripForm.startDate ? String(store.editTripForm.startDate).slice(0, 10) : '';
             return `
                 <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="edit-trip-title">
-                    <div class="flex items-center justify-center min-h-screen px-4">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
                         <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-edit-trip"></div>
-                        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in-up">
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
                             <div class="flex justify-between items-center mb-4 border-b pb-2">
                                 <h3 id="edit-trip-title" class="text-lg font-bold text-gray-900">Sửa chuyến đi</h3>
                                 <button data-action="close-edit-trip" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
@@ -1608,9 +2013,257 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 </div>
                                 <p id="edit-trip-error" class="hidden text-sm text-red-600 font-medium"></p>
                             </div>
-                            <div class="flex justify-end gap-2 mt-6">
+                            <div class="modal-actions flex justify-end gap-2 mt-6">
                                 <button data-action="close-edit-trip" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                                 <button data-action="save-edit-trip" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const renderAdvanceModal = () => {
+            if (!store.advanceModalOpen) return '';
+            const trip = getActiveTrip();
+            if (!trip) return '';
+            const members = trip.members || [];
+            const f = store.advanceForm;
+            const options = (selected, excludeId) => members.filter(m => m.id !== excludeId)
+                .map(m => `<option value="${escapeHtml(m.id)}" ${m.id === selected ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('');
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="advance-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-advance-modal"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 id="advance-title" class="text-lg font-bold text-gray-900">Ứng tiền</h3>
+                                <button data-action="close-advance-modal" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="adv-giver" class="block text-sm font-medium text-gray-700 mb-1">Người đưa tiền</label>
+                                    <select id="adv-giver" class="w-full rounded-md border border-gray-300 p-2"><option value="">Chọn người...</option>${options(f.memberId)}</select>
+                                </div>
+                                <div>
+                                    <label for="adv-receiver" class="block text-sm font-medium text-gray-700 mb-1">Người nhận (thủ quỹ)</label>
+                                    <select id="adv-receiver" class="w-full rounded-md border border-gray-300 p-2"><option value="">Chọn người...</option>${options(f.receiverId, f.memberId)}</select>
+                                </div>
+                                <div>
+                                    <label for="adv-amount" class="block text-sm font-medium text-gray-700 mb-1">Số tiền</label>
+                                    <input type="text" id="adv-amount" inputmode="numeric" value="${escapeHtml(f.amount)}" placeholder="VD: 500k hoặc 500000" class="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <p class="text-xs text-gray-500">Người đưa được tính là đã góp tiền; người nhận đang giữ khoản tiền này cho cả nhóm.</p>
+                                <p id="adv-error" class="hidden text-sm text-red-600 font-medium"></p>
+                            </div>
+                            <div class="modal-actions flex justify-end gap-2 mt-6">
+                                <button data-action="close-advance-modal" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
+                                <button data-action="save-advance" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const renderReceiptViewer = () => {
+            const v = store.receiptViewer;
+            if (!v) return '';
+            const trip = getActiveTrip();
+            const expense = trip && (trip.expenses || []).find(e => e.id === v.expenseId);
+            if (!expense) return '';
+            const ids = expense.receiptIds || [];
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="receipts-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-receipts"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-lg w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center gap-2 mb-4 border-b pb-2">
+                                <h3 id="receipts-title" class="text-lg font-bold text-gray-900 min-w-0 break-words">Hóa đơn: ${escapeHtml(expense.description)}</h3>
+                                <button data-action="close-receipts" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <div class="space-y-3">
+                                ${ids.length === 0 ? '<p class="text-sm text-gray-500">Khoản chi này không có ảnh.</p>' : ids.map((id, i) => {
+                                    const src = store.receiptCache[id];
+                                    if (!src) return `<div class="h-48 flex items-center justify-center bg-gray-50 border border-gray-200 text-gray-400"><i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i></div>`;
+                                    if (src === 'error') return `<div class="h-24 flex items-center justify-center bg-gray-50 border border-gray-200 text-sm text-gray-500">Không tải được ảnh ${i + 1}</div>`;
+                                    return `<img src="${escapeHtml(src)}" alt="Ảnh hóa đơn ${i + 1}" class="w-full h-auto border border-gray-200" />`;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const renderBankModal = () => {
+            const f = store.bankModal;
+            if (!f) return '';
+            const trip = getActiveTrip();
+            const member = trip && (trip.members || []).find(m => m.id === f.memberId);
+            if (!member) return '';
+            const filter = toAsciiText(f.filter || '').toLowerCase();
+            const banks = VN_BANKS.filter(b => !filter || toAsciiText(b[0]).toLowerCase().includes(filter) || b[1] === f.bin);
+            const existing = store.bankAccounts[f.memberId];
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="bank-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-bank-modal"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 id="bank-title" class="text-lg font-bold text-gray-900 min-w-0 truncate">Ngân hàng của ${escapeHtml(member.name)}</h3>
+                                <button data-action="close-bank-modal" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="bank-qr-file" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[44px] cursor-pointer text-sm"><i data-lucide="scan-line" class="w-4 h-4"></i> Tải ảnh QR ngân hàng</label>
+                                    <input type="file" id="bank-qr-file" accept="image/*" class="sr-only" />
+                                    <p class="text-xs text-gray-500 mt-1">Chọn ảnh chụp mã QR nhận tiền từ app ngân hàng để tự điền. Ảnh chỉ được đọc trên máy này, không tải lên đâu cả.</p>
+                                </div>
+                                <div>
+                                    <label for="bank-filter" class="block text-sm font-medium text-gray-700 mb-1">Ngân hàng</label>
+                                    <input type="text" id="bank-filter" value="${escapeHtml(f.filter || '')}" placeholder="Tìm: vcb, techcom, mb..." class="w-full rounded-md border border-gray-300 p-2 mb-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    <select id="bank-bin" class="w-full rounded-md border border-gray-300 p-2"><option value="">Chọn ngân hàng...</option>${banks.map(b => `<option value="${b[1]}" ${b[1] === f.bin ? 'selected' : ''}>${escapeHtml(b[0])}</option>`).join('')}</select>
+                                </div>
+                                <div>
+                                    <label for="bank-account" class="block text-sm font-medium text-gray-700 mb-1">Số tài khoản</label>
+                                    <input type="text" id="bank-account" inputmode="numeric" autocomplete="off" value="${escapeHtml(f.accountNumber || '')}" placeholder="Chỉ gồm chữ số" class="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label for="bank-name" class="block text-sm font-medium text-gray-700 mb-1">Tên chủ tài khoản</label>
+                                    <input type="text" id="bank-name" autocomplete="off" value="${escapeHtml(f.accountName || '')}" placeholder="VD: NGUYEN VAN AN" class="w-full rounded-md border border-gray-300 p-2 uppercase focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <p class="text-xs text-gray-500 flex gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i> Chỉ người có quyền sửa chuyến đi thấy thông tin này. Người cầm link xem không thấy.</p>
+                                <p id="bank-error" class="hidden text-sm text-red-600 font-medium"></p>
+                            </div>
+                            <div class="modal-actions flex justify-end gap-2 mt-6">
+                                ${existing ? `<button data-action="delete-bank" class="mr-auto px-3 min-h-[40px] text-red-600 hover:text-red-700 text-sm">Xóa</button>` : ''}
+                                <button data-action="close-bank-modal" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
+                                <button data-action="save-bank" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        // Everything needed to show, save or copy the transfer in store.payQr; null if data is missing.
+        const currentPayQr = () => {
+            const pq = store.payQr;
+            if (!pq) return null;
+            const trip = getActiveTrip();
+            const members = (trip && trip.members) || [];
+            const from = members.find(m => m.id === pq.fromId);
+            const to = members.find(m => m.id === pq.toId);
+            const bank = store.bankAccounts[pq.toId];
+            if (!trip || !from || !to || !bank) return null;
+            const note = toAsciiText(`EasyTrip ${from.name} tra ${to.name}`).slice(0, 25).trim();
+            const payload = buildVietQR({ bin: bank.bin, accountNumber: bank.accountNumber, amount: pq.amount, purpose: note });
+            return { pq, from, to, bank, note, payload };
+        };
+
+        // PNG with the QR and transfer details, drawn locally, for saving or sending to the payer.
+        const payQrImage = async (info) => {
+            const { pq, from, to, bank, note, payload } = info;
+            const qr = window.qrcode(0, 'M');
+            qr.addData(payload);
+            qr.make();
+            const modules = qr.getModuleCount();
+            const cell = Math.floor(560 / (modules + 8));
+            const qrSize = cell * (modules + 8);
+            const W = 720, H = 300 + qrSize + 330;
+            const canvas = document.createElement('canvas');
+            canvas.width = W; canvas.height = H;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = '#111111'; ctx.textAlign = 'center';
+            ctx.font = 'bold 40px sans-serif'; ctx.fillText('Chuyển khoản', W / 2, 80);
+            ctx.font = '30px sans-serif'; ctx.fillText(`${from.name} → ${to.name}`.slice(0, 40), W / 2, 130);
+            ctx.font = 'bold 52px sans-serif'; ctx.fillText(formatCurrency(pq.amount), W / 2, 210);
+            const qrX = (W - qrSize) / 2, qrY = 250;
+            for (let r = 0; r < modules; r++) for (let c = 0; c < modules; c++) {
+                if (qr.isDark(r, c)) ctx.fillRect(qrX + (c + 4) * cell, qrY + (r + 4) * cell, cell, cell);
+            }
+            ctx.textAlign = 'left'; ctx.font = '28px sans-serif';
+            const rows = [['Ngân hàng', bank.bankName], ['Số TK', bank.accountNumber], ['Chủ TK', bank.accountName || '—'], ['Nội dung', note]];
+            rows.forEach(([k, v], i) => {
+                const y = qrY + qrSize + 60 + i * 52;
+                ctx.fillStyle = '#666666'; ctx.fillText(k, 70, y);
+                ctx.fillStyle = '#111111'; ctx.textAlign = 'right'; ctx.fillText(String(v).slice(0, 30), W - 70, y); ctx.textAlign = 'left';
+            });
+            ctx.fillStyle = '#999999'; ctx.textAlign = 'center'; ctx.font = '22px sans-serif';
+            ctx.fillText('Mở app ngân hàng → Quét QR → chọn ảnh này', W / 2, H - 40);
+            return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        };
+
+        const renderPayQrModal = () => {
+            const info = currentPayQr();
+            if (!info) return '';
+            const { pq, from, to, bank, note, payload } = info;
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="payqr-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-pay-qr"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 id="payqr-title" class="text-lg font-bold text-gray-900">Chuyển khoản</h3>
+                                <button data-action="close-pay-qr" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <p class="text-sm mb-3 flex flex-wrap items-center gap-x-2"><span class="font-bold text-red-600">${escapeHtml(from.name)}</span><i data-lucide="arrow-right" class="w-4 h-4 text-gray-400"></i><span class="font-bold text-green-600">${escapeHtml(to.name)}</span></p>
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-56 h-56 bg-white p-1 border border-gray-200" aria-label="Mã VietQR chuyển khoản">${qrSvg(payload)}</div>
+                                <p class="text-xs text-gray-500 text-center">Quét bằng app ngân hàng trên máy khác, hoặc lưu ảnh rồi trong app chọn <b>Quét QR → chọn ảnh từ thư viện</b>.</p>
+                                <div class="w-full grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                                    <button data-action="save-pay-qr" class="box-btn bg-indigo-600 text-white flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="download" class="w-4 h-4"></i> Lưu / gửi ảnh QR</button>
+                                    <button data-action="copy-pay-info" class="box-btn-ghost flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="copy" class="w-4 h-4"></i> Sao chép STK &amp; số tiền</button>
+                                </div>
+                            </div>
+                            <dl class="mt-4 text-sm divide-y divide-gray-100 border border-gray-200 rounded-md">
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Ngân hàng</dt><dd class="font-medium text-right">${escapeHtml(bank.bankName)}</dd></div>
+                                <div class="flex justify-between items-center gap-3 px-3 py-1"><dt class="text-gray-500">Số TK</dt><dd class="flex items-center gap-1 font-medium"><span class="break-all">${escapeHtml(bank.accountNumber)}</span><button data-action="copy-account" data-value="${escapeHtml(bank.accountNumber)}" aria-label="Sao chép số tài khoản" class="icon-btn text-gray-400 hover:text-indigo-600"><i data-lucide="copy" class="w-4 h-4"></i></button></dd></div>
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Chủ TK</dt><dd class="font-medium text-right break-words">${escapeHtml(bank.accountName || '—')}</dd></div>
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Số tiền</dt><dd class="font-bold text-right">${formatCurrency(pq.amount)}</dd></div>
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Nội dung</dt><dd class="font-medium text-right break-words">${escapeHtml(note)}</dd></div>
+                            </dl>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const renderShareModal = () => {
+            if (!store.shareModalOpen) return '';
+            const trip = getActiveTrip();
+            if (!trip) return '';
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="share-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-share"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 id="share-title" class="text-lg font-bold text-gray-900">Chia sẻ chuyến đi</h3>
+                                <button data-action="close-share" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <div class="space-y-4">
+                                <section class="border border-gray-200 rounded-md p-3">
+                                    <h4 class="font-medium text-gray-900 flex items-center gap-2"><i data-lucide="eye" class="w-4 h-4 text-indigo-600"></i> Link xem</h4>
+                                    <p class="text-xs text-gray-500 mb-3">Người nhận chỉ xem được, không sửa được.</p>
+                                    <div class="flex flex-col items-center gap-3">
+                                        <div class="w-44 h-44 bg-white p-1 border border-gray-200" aria-label="Mã QR link xem">${qrSvg(shareViewUrl(trip.id))}</div>
+                                        <button data-action="copy-view-link" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[40px]"><i data-lucide="copy" class="w-4 h-4"></i> Sao chép link xem</button>
+                                    </div>
+                                </section>
+                                ${canEdit(trip) ? `
+                                <section class="border border-amber-200 rounded-md p-3">
+                                    <h4 class="font-medium text-gray-900 flex items-center gap-2"><i data-lucide="pencil" class="w-4 h-4 text-amber-600"></i> Link sửa</h4>
+                                    <p class="text-xs text-gray-500 mb-3">Ai mở link này sẽ được quyền thêm, sửa khoản chi. Chỉ gửi cho người trong nhóm, đừng để lộ khi chia sẻ màn hình.</p>
+                                    <div class="flex flex-col items-center gap-3">
+                                        ${editQr ? `
+                                        <div class="w-44 h-44 bg-white p-1 border border-amber-300" aria-label="Mã QR link sửa">${qrSvg(editQr.url)}</div>
+                                        <p class="text-xs text-amber-700">Tự ẩn sau <span id="edit-qr-countdown">${Math.max(0, Math.ceil((editQr.until - Date.now()) / 1000))}</span> giây</p>
+                                        <button data-action="hide-edit-qr" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[40px]"><i data-lucide="eye-off" class="w-4 h-4"></i> Ẩn QR sửa</button>
+                                        ` : `
+                                        <div class="w-44 h-44 border border-dashed border-amber-300 bg-amber-50 flex flex-col items-center justify-center text-amber-700 text-xs text-center gap-2 p-3" aria-hidden="true"><i data-lucide="lock" class="w-8 h-8"></i>QR link sửa đang ẩn</div>
+                                        <button data-action="show-edit-qr" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[40px]"><i data-lucide="qr-code" class="w-4 h-4"></i> Hiện QR sửa</button>
+                                        `}
+                                        <button data-action="copy-edit-link" class="box-btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 min-h-[40px]"><i data-lucide="copy" class="w-4 h-4"></i> Sao chép link sửa</button>
+                                    </div>
+                                </section>` : ''}
                             </div>
                         </div>
                     </div>
@@ -1623,12 +2276,18 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const selStart = active && typeof active.selectionStart === 'number' ? active.selectionStart : null;
             const selEnd = active && typeof active.selectionEnd === 'number' ? active.selectionEnd : null;
 
+            ensureBankListener(store.activeTripId ? getActiveTrip() : null);
             if (store.activeTripId) app.innerHTML = renderTripDetail();
             else app.innerHTML = renderTripList();
 
             let modals = renderExpenseModal();
             modals += renderImageSelector();
             modals += renderEditTripModal();
+            modals += renderShareModal();
+            modals += renderAdvanceModal();
+            modals += renderBankModal();
+            modals += renderPayQrModal();
+            modals += renderReceiptViewer();
             modalContainer.innerHTML = modals;
 
             if (window.lucide) window.lucide.createIcons();
@@ -1682,11 +2341,19 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const action = target.dataset.action;
             const id = target.dataset.id;
 
-            if (action === 'select-trip') { store.activeTripId = id; store.isReadOnly = false; store.activeTab = 'expenses'; store.expenseSearchText = ''; store.reportSearchText = ''; render(); }
+            if (action === 'select-trip') { store.activeTripId = id; store.activeTab = 'expenses'; store.expenseSearchText = ''; store.reportSearchText = ''; render(); }
 
             if (action === 'back-to-list') {
+                hideEditQr();
+                store.shareModalOpen = false;
+                store.bankModal = null;
+                store.payQr = null;
+                store.receiptViewer = null;
+                store.receiptCache = {};
                 store.activeTripId = null;
-                store.isReadOnly = false;
+                store.linkTripId = null;
+                store.externalTrip = null;
+                if (unsubLinkTrip) { unsubLinkTrip(); unsubLinkTrip = null; }
                 store.expenseSearchText = '';
                 store.reportSearchText = '';
                 if (window.location.protocol !== 'file:') {
@@ -1708,42 +2375,192 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     await deleteTripFromDB(id);
                 }
             }
-            if (action === 'share-trip') {
-                const trip = store.trips.find(t => t.id === store.activeTripId);
-                const baseUrl = window.location.href.split('#')[0];
-                const shareUrl = `${baseUrl}#trip=${trip.id}`;
+            if (action === 'share-trip') { store.shareModalOpen = true; render(); }
+            if (action === 'close-share') closeShareModal();
+            if (action === 'open-bank-modal') {
+                const existing = store.bankAccounts[id] || {};
+                store.payQr = null;
+                store.bankModal = { memberId: id, bin: existing.bin || '', accountNumber: existing.accountNumber || '', accountName: existing.accountName || '', filter: '' };
+                render();
+            }
+            if (action === 'close-bank-modal') { store.bankModal = null; render(); }
+            if (action === 'save-bank') {
+                const f = store.bankModal;
+                if (!f) return;
+                const errEl = document.getElementById('bank-error');
+                const bank = bankByBin(f.bin);
+                const accountNumber = String(f.accountNumber || '').replace(/\s+/g, '');
+                const accountName = toAsciiText(f.accountName).toUpperCase().slice(0, 50);
+                const problems = [];
+                if (!bank) problems.push('ngân hàng');
+                if (!/^[0-9]{4,19}$/.test(accountNumber)) problems.push('số tài khoản (4–19 chữ số)');
+                if (problems.length) {
+                    if (errEl) { errEl.textContent = 'Vui lòng kiểm tra: ' + problems.join(', ') + '.'; errEl.classList.remove('hidden'); }
+                    return;
+                }
+                setBtnLoading(target, true, 'Đang lưu...');
+                try {
+                    await setDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'bankAccounts', f.memberId), { bin: bank[1], bankName: bank[0], accountNumber, accountName });
+                    store.bankModal = null;
+                    render();
+                    showToast('Đã lưu tài khoản ngân hàng', 'success');
+                } catch (err) {
+                    console.error(err);
+                    setBtnLoading(target, false);
+                    showToast('Không lưu được. ' + (err.message || ''), 'error');
+                }
+            }
+            if (action === 'delete-bank') {
+                const f = store.bankModal;
+                if (!f || !(await showConfirm('Xóa thông tin ngân hàng của thành viên này?', 'Xóa tài khoản ngân hàng'))) return;
+                try {
+                    await deleteDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'bankAccounts', f.memberId));
+                    store.bankModal = null;
+                    render();
+                    showToast('Đã xóa tài khoản ngân hàng', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Không xóa được. ' + (err.message || ''), 'error');
+                }
+            }
+            if (action === 'open-pay-qr') {
+                store.payQr = { fromId: target.dataset.from, toId: target.dataset.to, amount: Number(target.dataset.amount) || 0 };
+                render();
+            }
+            if (action === 'close-pay-qr') { store.payQr = null; render(); }
+            if (action === 'save-pay-qr') {
+                const info = currentPayQr();
+                if (!info) return;
+                const blob = await payQrImage(info);
+                const file = new File([blob], `chuyen-khoan-${toAsciiText(info.to.name).replace(/ /g, '-').toLowerCase() || 'qr'}.png`, { type: 'image/png' });
+                // Phones: the share sheet offers "Save image", Zalo, Messenger...; elsewhere download the file.
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try { await navigator.share({ files: [file], title: 'Mã QR chuyển khoản' }); } catch (err) { if (err && err.name !== 'AbortError') showToast('Không chia sẻ được ảnh.', 'error'); }
+                } else {
+                    const url = URL.createObjectURL(file);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = file.name;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    showToast('Đã lưu ảnh QR', 'success');
+                }
+            }
+            if (action === 'copy-pay-info') {
+                const info = currentPayQr();
+                if (!info) return;
+                const text = `${info.bank.bankName} ${info.bank.accountNumber}${info.bank.accountName ? ' - ' + info.bank.accountName : ''}\nSố tiền: ${Math.round(info.pq.amount)}\nNội dung: ${info.note}`;
+                try { await navigator.clipboard.writeText(text); showToast('Đã sao chép STK & số tiền', 'success'); } catch (err) { console.warn(err); }
+            }
+            if (action === 'copy-account') {
+                try { await navigator.clipboard.writeText(target.dataset.value || ''); showToast('Đã sao chép số tài khoản', 'success'); } catch (err) { console.warn(err); }
+            }
+            if (action === 'hide-edit-qr') { hideEditQr(); render(); }
+            if (action === 'show-edit-qr') {
+                const trip = getActiveTrip();
+                if (!trip || !canEdit(trip)) return;
+                setBtnLoading(target, true, 'Đang tạo...');
+                try {
+                    editQr = { url: `${shareViewUrl(trip.id)}&key=${await ensureEditKey(trip.id)}`, until: Date.now() + EDIT_QR_SECONDS * 1000 };
+                } catch (err) {
+                    console.error(err);
+                    setBtnLoading(target, false);
+                    showToast('Không thể tạo link sửa. ' + (err.message || ''), 'error');
+                    return;
+                }
+                if (editQrTimer) clearInterval(editQrTimer);
+                editQrTimer = setInterval(() => {
+                    const left = editQr ? Math.ceil((editQr.until - Date.now()) / 1000) : 0;
+                    const el = document.getElementById('edit-qr-countdown');
+                    if (left <= 0 || !store.shareModalOpen) { hideEditQr(); render(); return; }
+                    if (el) el.textContent = left;
+                }, 1000);
+                render();
+            }
+            if (action === 'copy-view-link' || action === 'copy-edit-link') {
+                const trip = getActiveTrip();
+                if (!trip) return;
+                let shareUrl = shareViewUrl(trip.id);
+                if (action === 'copy-edit-link') {
+                    setBtnLoading(target, true, 'Đang tạo link...');
+                    try {
+                        shareUrl += `&key=${await ensureEditKey(trip.id)}`;
+                    } catch (err) {
+                        console.error(err);
+                        setBtnLoading(target, false);
+                        showToast('Không thể tạo link sửa. ' + (err.message || ''), 'error');
+                        return;
+                    }
+                }
                 try { await navigator.clipboard.writeText(shareUrl); } catch (err) { console.warn(err); }
-                showToast('Đã sao chép link chia sẻ!', 'success');
-            } if (action === 'enable-editing') { store.isReadOnly = false; render(); }
-
-            if (action === 'remove-member') {
-                if (!(await showConfirm("Xóa thành viên này? Các khoản chi liên quan sẽ được tính lại.", "Xóa thành viên"))) return;
-                const trip = store.trips.find(t => t.id === store.activeTripId);
-                const remainingMembers = trip.members.filter(m => m.id !== id);
-                const updatedExpenses = trip.expenses.map(e => {
-                    const newInvolved = e.involvedMemberIds ? e.involvedMemberIds.filter(mid => mid !== id) : [];
-                    let newPayerId = e.payerId;
-                    if (e.payerId === id) { newPayerId = remainingMembers.length > 0 ? remainingMembers[0].id : ''; }
-                    return { ...e, payerId: newPayerId, involvedMemberIds: newInvolved };
-                });
-                const ok = await updateTripInDB({ ...trip, members: remainingMembers, expenses: updatedExpenses });
-                if (ok) showToast('Đã xóa thành viên', 'success');
+                closeShareModal();
+                showToast(action === 'copy-edit-link' ? 'Đã sao chép link sửa!' : 'Đã sao chép link xem!', 'success');
+            }
+            if (action === 'claim-trip') {
+                const trip = getActiveTrip();
+                if (!trip || !isLegacyTrip(trip)) return;
+                if (!(await showConfirm('Nhận quyền sở hữu chuyến đi này? Sau đó chỉ bạn và người có link sửa mới chỉnh sửa được.', 'Nhận quyền sở hữu'))) return;
+                await claimTrip(trip.id);
             }
 
-            if (action === 'add-advance') {
-                const memberId = target.dataset.id;
-                const trip = store.trips.find(t => t.id === store.activeTripId);
+            if (action === 'remove-member') {
+                const trip = getActiveTrip();
                 if (!trip) return;
-                const memberName = trip.members.find(m => m.id === memberId)?.name || 'thành viên';
-                const raw = await showPrompt('Nhập số tiền ứng (VNĐ) cho ' + memberName + ':', '', 'VD: 500k hoặc 500000');
-                if (raw === null) return;
-                const amount = parseAmount(raw);
-                if (amount <= 0) { showToast('Vui lòng nhập số tiền hợp lệ.', 'error'); return; }
-                const advance = { id: generateId(), memberId, amount, date: new Date().toISOString(), note: '' };
-                const updatedAdv = [...(trip.advances || [])];
-                updatedAdv.unshift(advance);
-                const ok = await updateTripInDB({ ...trip, advances: updatedAdv });
-                if (ok) showToast('Đã thêm khoản ứng tiền', 'success');
+                const reason = memberRemovalBlocker(trip, id);
+                if (reason) { showToast(reason, 'error'); return; }
+                if (!(await showConfirm("Xóa thành viên này?", "Xóa thành viên"))) return;
+                const ok = await mutateTrip(store.activeTripId, (t) => {
+                    // Re-check against the latest data in case someone else edited meanwhile
+                    const latestReason = memberRemovalBlocker(t, id);
+                    if (latestReason) throw new MutationAbort(latestReason);
+                    return {
+                        members: t.members.filter(m => m.id !== id),
+                        expenses: t.expenses.map(e => (e.involvedMemberIds && e.involvedMemberIds.length > 0)
+                            ? { ...e, involvedMemberIds: e.involvedMemberIds.filter(mid => mid !== id) }
+                            : e)
+                    };
+                });
+                if (ok) {
+                    if (store.bankAccounts[id]) {
+                        try { await deleteDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'bankAccounts', id)); } catch (err) { console.warn(err); }
+                    }
+                    showToast('Đã xóa thành viên', 'success');
+                }
+            }
+
+            if (action === 'open-advance-modal') {
+                store.advanceForm = { memberId: target.dataset.id || '', receiverId: '', amount: '' };
+                store.advanceModalOpen = true;
+                render();
+                setTimeout(() => document.getElementById(store.advanceForm.memberId ? 'adv-receiver' : 'adv-giver')?.focus(), 50);
+            }
+            if (action === 'close-advance-modal') { store.advanceModalOpen = false; render(); }
+            if (action === 'save-advance') {
+                const errEl = document.getElementById('adv-error');
+                const { memberId, receiverId } = store.advanceForm;
+                const amount = parseAmount(document.getElementById('adv-amount')?.value);
+                const problems = [];
+                if (!memberId) problems.push('người đưa');
+                if (!receiverId || receiverId === memberId) problems.push('người nhận khác người đưa');
+                if (amount <= 0) problems.push('số tiền hợp lệ');
+                if (problems.length) {
+                    if (errEl) { errEl.textContent = 'Vui lòng bổ sung: ' + problems.join(', ') + '.'; errEl.classList.remove('hidden'); }
+                    return;
+                }
+                setBtnLoading(target, true, 'Đang lưu...');
+                const advance = { id: generateId(), memberId, receiverId, amount, date: new Date().toISOString(), note: '' };
+                const ok = await mutateTrip(store.activeTripId, (t) => ({ advances: [advance, ...t.advances] }));
+                if (ok) {
+                    store.advanceModalOpen = false;
+                    render();
+                    showToast('Đã thêm khoản ứng tiền', 'success');
+                } else {
+                    setBtnLoading(target, false);
+                }
+            }
+            if (action === 'delete-advance') {
+                if (!(await showConfirm('Xóa khoản ứng tiền này?', 'Xóa khoản ứng'))) return;
+                const ok = await mutateTrip(store.activeTripId, (t) => ({ advances: t.advances.filter(a => a.id !== id) }));
+                if (ok) showToast('Đã xóa khoản ứng', 'success');
             }
 
             if (action === 'select-member-icon') {
@@ -1771,17 +2588,17 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 const memberId = target.dataset.id;
                 const val = target.dataset.value;
                 const newRate = val === '' ? null : parseFloat(val);
-                const trip = store.trips.find(t => t.id === store.activeTripId);
-                const updatedMembers = trip.members.map(m => m.id === memberId ? { ...m, childRate: newRate } : m);
                 store.editingChildMemberId = null;
-                const ok = await updateTripInDB({ ...trip, members: updatedMembers });
+                const ok = await mutateTrip(store.activeTripId, (t) => ({
+                    members: t.members.map(m => m.id === memberId ? { ...m, childRate: newRate } : m)
+                }));
                 if (ok) showToast('Đã cập nhật loại thành viên', 'success');
             }
 
-            if (action === 'open-expense-modal') { store.expenseModalOpen = true; store.editingExpenseId = null; const trip = store.trips.find(t => t.id === store.activeTripId); store.expenseForm = { desc: '', amount: '', payerId: '', involvedIds: trip.members.map(m => m.id), icon: 'receipt' }; render(); setTimeout(() => document.getElementById('ex-desc')?.focus(), 50); }
+            if (action === 'open-expense-modal') { store.expenseModalOpen = true; store.editingExpenseId = null; const trip = getActiveTrip(); store.expenseForm = { desc: '', amount: '', payerId: '', involvedIds: trip.members.map(m => m.id), icon: 'receipt', receipts: [], removedReceiptIds: [] }; render(); setTimeout(() => document.getElementById('ex-desc')?.focus(), 50); }
             if (action === 'close-modal') { store.expenseModalOpen = false; render(); }
             if (action === 'edit-expense') {
-                const trip = store.trips.find(t => t.id === store.activeTripId);
+                const trip = getActiveTrip();
                 const expense = trip.expenses.find(e => e.id === id);
                 store.expenseModalOpen = true;
                 store.editingExpenseId = id;
@@ -1790,14 +2607,44 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     amount: expense.amount,
                     payerId: expense.payerId,
                     involvedIds: expense.involvedMemberIds || trip.members.map(m => m.id),
-                    icon: expense.categoryIcon || 'receipt'
+                    icon: expense.categoryIcon || 'receipt',
+                    receipts: (expense.receiptIds || []).map(rid => ({ id: rid, isNew: false })),
+                    removedReceiptIds: []
                 };
                 render();
+                loadReceipts(expense.receiptIds);
             }
-            if (action === 'delete-expense') { if (await showConfirm("Xóa khoản chi này?", "Xóa khoản chi")) { const trip = store.trips.find(t => t.id === store.activeTripId); const updatedExpenses = trip.expenses.filter(e => e.id !== id); const ok = await updateTripInDB({ ...trip, expenses: updatedExpenses }); if (ok) showToast('Đã xóa khoản chi', 'success'); } }
+            if (action === 'remove-receipt') {
+                const f = store.expenseForm;
+                const r = (f.receipts || []).find(x => x.id === id);
+                if (!r) return;
+                f.receipts = f.receipts.filter(x => x.id !== id);
+                if (!r.isNew) f.removedReceiptIds = [...(f.removedReceiptIds || []), id];
+                render();
+            }
+            if (action === 'view-receipts') {
+                const expense = (getActiveTrip()?.expenses || []).find(e => e.id === id);
+                store.receiptViewer = { expenseId: id };
+                render();
+                loadReceipts(expense && expense.receiptIds);
+            }
+            if (action === 'close-receipts') { store.receiptViewer = null; render(); }
+            if (action === 'delete-expense') {
+                if (!(await showConfirm("Xóa khoản chi này?", "Xóa khoản chi"))) return;
+                const tripId = store.activeTripId;
+                let receiptIds = [];
+                const ok = await mutateTrip(tripId, (t) => {
+                    receiptIds = (t.expenses.find(e => e.id === id) || {}).receiptIds || [];
+                    return { expenses: t.expenses.filter(e => e.id !== id) };
+                });
+                if (ok) {
+                    await deleteReceiptDocs(tripId, receiptIds);
+                    showToast('Đã xóa khoản chi', 'success');
+                }
+            }
 
             if (action === 'toggle-involved') { const id = target.dataset.id; if (store.expenseForm.involvedIds.includes(id)) store.expenseForm.involvedIds = store.expenseForm.involvedIds.filter(i => i !== id); else store.expenseForm.involvedIds.push(id); render(); }
-            if (action === 'toggle-select-all') { const trip = store.trips.find(t => t.id === store.activeTripId); store.expenseForm.involvedIds = store.expenseForm.involvedIds.length === trip.members.length ? [] : trip.members.map(m => m.id); render(); }
+            if (action === 'toggle-select-all') { const trip = getActiveTrip(); store.expenseForm.involvedIds = store.expenseForm.involvedIds.length === trip.members.length ? [] : trip.members.map(m => m.id); render(); }
 
             if (action === 'select-icon') {
                 store.expenseForm.icon = target.dataset.value;
@@ -1810,7 +2657,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             }
 
             if (action === 'open-edit-trip') {
-                const trip = store.trips.find(t => t.id === store.activeTripId);
+                const trip = getActiveTrip();
                 if (!trip) return;
                 store.editTripModalOpen = true;
                 store.editTripForm = { name: trip.name || '', startDate: trip.startDate || new Date().toISOString() };
@@ -1831,9 +2678,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 }
                 if (errEl) errEl.classList.add('hidden');
                 setBtnLoading(target, true, 'Đang lưu...');
-                const trip = store.trips.find(t => t.id === store.activeTripId);
-                const updated = { ...trip, name, startDate: date ? new Date(date + 'T00:00:00').toISOString() : trip.startDate };
-                const ok = await updateTripInDB(updated);
+                const ok = await mutateTrip(store.activeTripId, (t) => ({
+                    name, startDate: date ? new Date(date + 'T00:00:00').toISOString() : t.startDate
+                }));
                 if (ok) {
                     store.editTripModalOpen = false;
                     render();
@@ -1871,45 +2718,48 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
 
                 setBtnLoading(target, true, 'Đang lưu...');
 
-                const trip = store.trips.find(t => t.id === store.activeTripId);
-                // Special handling: if description starts with 'Ứng tiền', create one expense per involved member
-                let updatedExpenses = [...trip.expenses];
-                if (desc.startsWith('Ứng tiền')) {
-                    const perMember = store.expenseForm.involvedIds.map(mid => {
-                        return {
-                            id: generateId(),
-                            description: `Ứng tiền — ${trip.members.find(m=>m.id===mid)?.name || ''}`,
-                            amount: amount,
-                            payerId: mid,
-                            date: new Date().toISOString(),
-                            involvedMemberIds: store.expenseForm.involvedIds,
-                            categoryIcon: store.expenseForm.icon
-                        };
-                    });
-                    updatedExpenses = [...perMember, ...updatedExpenses];
-                } else {
-                    const expenseData = {
-                        id: store.editingExpenseId || generateId(),
-                        description: desc,
-                        amount,
-                        payerId,
-                        date: new Date().toISOString(),
-                        involvedMemberIds: store.expenseForm.involvedIds,
-                        categoryIcon: store.expenseForm.icon
-                    };
-
-                    if (store.editingExpenseId) updatedExpenses = updatedExpenses.map(e => e.id === store.editingExpenseId ? expenseData : e);
-                    else updatedExpenses.unshift(expenseData);
+                const expenseData = {
+                    id: store.editingExpenseId || generateId(),
+                    description: desc,
+                    amount,
+                    payerId,
+                    date: new Date().toISOString(),
+                    involvedMemberIds: store.expenseForm.involvedIds,
+                    categoryIcon: store.expenseForm.icon,
+                    receiptIds: (store.expenseForm.receipts || []).map(r => r.id)
+                };
+                const editingId = store.editingExpenseId;
+                const now = expenseData.date;
+                const wasEditing = !!editingId;
+                const tripId = store.activeTripId;
+                const newReceipts = (store.expenseForm.receipts || []).filter(r => r.isNew);
+                const removedReceiptIds = store.expenseForm.removedReceiptIds || [];
+                try {
+                    await Promise.all(newReceipts.map(r => setDoc(doc(db, TRIPS_COLLECTION, tripId, 'receipts', r.id),
+                        { expenseId: expenseData.id, data: r.data, createdBy: store.uid, createdAt: serverTimestamp() })));
+                } catch (err) {
+                    console.error(err);
+                    await deleteReceiptDocs(tripId, newReceipts.map(r => r.id));
+                    setBtnLoading(target, false);
+                    showToast('Không tải được ảnh hóa đơn. ' + (err.message || ''), 'error');
+                    return;
                 }
-
-                const wasEditing = !!store.editingExpenseId;
-                const ok = await updateTripInDB({ ...trip, expenses: updatedExpenses });
+                const ok = await mutateTrip(tripId, (t) => {
+                    if (editingId && !t.expenses.some(e => e.id === editingId)) throw new MutationAbort('Khoản chi này vừa bị người khác xóa.');
+                    return {
+                        expenses: editingId
+                            ? t.expenses.map(e => e.id === editingId ? { ...expenseData, date: e.date || now } : e)
+                            : [expenseData, ...t.expenses]
+                    };
+                });
                 if (ok) {
+                    await deleteReceiptDocs(tripId, removedReceiptIds);
                     store.expenseModalOpen = false;
                     store.editingExpenseId = null;
                     render();
                     showToast(wasEditing ? 'Đã cập nhật khoản chi' : 'Đã thêm khoản chi', 'success');
                 } else {
+                    await deleteReceiptDocs(tripId, newReceipts.map(r => r.id));
                     setBtnLoading(target, false);
                 }
             }
@@ -1918,7 +2768,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 const text = document.getElementById('quick-add-input').value.trim();
                 if (!text) return;
                 store.isAnalyzing = true; render();
-                const trip = store.trips.find(t => t.id === store.activeTripId);
+                const trip = getActiveTrip();
                 const result = await parseExpenseWithAI(text, trip.members.map(m => m.name));
                 store.isAnalyzing = false;
                 if (result) {
@@ -1932,22 +2782,6 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                         icon: result.categoryIcon || 'receipt'
                     };
                 }
-                render();
-            }
-
-            if (action === 'advance-prompt') {
-                const trip = store.trips.find(t => t.id === store.activeTripId);
-                if (!trip) return;
-                // Open expense modal prefilled for an advance. User can pick payer in modal.
-                store.expenseModalOpen = true;
-                store.editingExpenseId = null;
-                store.expenseForm = {
-                    desc: 'Ứng tiền — ',
-                    amount: '',
-                    payerId: trip.members[0]?.id || '',
-                    involvedIds: trip.members.map(m => m.id),
-                    icon: 'receipt'
-                };
                 render();
             }
 
@@ -1972,8 +2806,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 if (!img) { showToast('Vui lòng chọn ảnh.', 'error'); return; }
                 setBtnLoading(target, true, 'Đang lưu...');
                 if (store.updateCoverMode && store.activeTripId) {
-                    const trip = store.trips.find(t => t.id === store.activeTripId);
-                    const ok = await updateTripInDB({ ...trip, coverImage: img });
+                    const ok = await mutateTrip(store.activeTripId, () => ({ coverImage: img }));
                     if (!ok) { setBtnLoading(target, false); return; }
                     showToast('Đã cập nhật ảnh bìa', 'success');
                 }
@@ -1983,6 +2816,71 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
         });
 
         document.addEventListener('change', async (e) => {
+            if (e.target.id === 'receipt-file') {
+                const files = [...(e.target.files || [])];
+                e.target.value = '';
+                const f = store.expenseForm;
+                if (!store.expenseModalOpen || !files.length) return;
+                const room = MAX_RECEIPTS_PER_EXPENSE - (f.receipts || []).length;
+                if (files.length > room) showToast(`Mỗi khoản chi tối đa ${MAX_RECEIPTS_PER_EXPENSE} ảnh; chỉ thêm ${Math.max(0, room)} ảnh đầu.`, 'error');
+                for (const file of files.slice(0, Math.max(0, room))) {
+                    let data = null;
+                    try { data = await compressReceipt(file); } catch (err) { console.warn(err); }
+                    if (!data) { showToast(`Không dùng được ảnh "${file.name}".`, 'error'); continue; }
+                    const rid = generateId() + generateId();
+                    store.receiptCache[rid] = data;
+                    f.receipts = [...(f.receipts || []), { id: rid, data, isNew: true }];
+                }
+                render();
+                return;
+            }
+            if (e.target.id === 'bank-qr-file') {
+                const file = e.target.files && e.target.files[0];
+                e.target.value = ''; // allow picking the same image again
+                if (!file || !store.bankModal) return;
+                let payload = null;
+                try {
+                    payload = await decodeQrFromFile(file);
+                } catch (err) {
+                    console.error(err);
+                    showToast(err.message || 'Không đọc được ảnh.', 'error');
+                    return;
+                }
+                if (!payload) { showToast('Không tìm thấy mã QR trong ảnh. Thử ảnh rõ hơn hoặc nhập tay.', 'error'); return; }
+                const info = parseVietQR(payload);
+                if (!info) { showToast('Đây không phải mã QR chuyển khoản ngân hàng (VietQR). Vui lòng nhập tay.', 'error'); return; }
+                const bank = bankByBin(info.bin);
+                if (!bank) { showToast('Ngân hàng trong mã QR chưa được hỗ trợ. Vui lòng nhập tay.', 'error'); return; }
+                if (!/^[0-9]{4,19}$/.test(info.accountNumber)) { showToast('Số tài khoản trong mã QR không hợp lệ. Vui lòng nhập tay.', 'error'); return; }
+                store.bankModal = {
+                    ...store.bankModal,
+                    bin: bank[1],
+                    accountNumber: info.accountNumber,
+                    accountName: info.accountName ? toAsciiText(info.accountName).toUpperCase() : store.bankModal.accountName,
+                    filter: '',
+                };
+                render();
+                showToast(`Đã đọc: ${bank[0]} • ${info.accountNumber}. Kiểm tra lại rồi bấm Lưu.`, 'success');
+                return;
+            }
+            if (e.target.id === 'adv-giver') {
+                store.advanceForm.memberId = e.target.value;
+                if (store.advanceForm.receiverId === e.target.value) store.advanceForm.receiverId = '';
+                render();
+                return;
+            }
+            if (e.target.id === 'adv-receiver') { store.advanceForm.receiverId = e.target.value; return; }
+            if (e.target.id === 'bank-bin' && store.bankModal) { store.bankModal.bin = e.target.value; return; }
+            if (e.target.dataset && e.target.dataset.advanceReceiver) {
+                const advanceId = e.target.dataset.advanceReceiver;
+                const receiverId = e.target.value;
+                if (!receiverId) return;
+                const ok = await mutateTrip(store.activeTripId, (t) => ({
+                    advances: t.advances.map(a => a.id === advanceId && a.memberId !== receiverId ? { ...a, receiverId } : a)
+                }));
+                if (ok) showToast('Đã cập nhật người nhận', 'success');
+                return;
+            }
             if (e.target.id === 'custom-image-upload') {
                 const file = e.target.files[0];
                 if (file) {
@@ -2035,13 +2933,12 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 if (errEl) errEl.classList.add('hidden');
                 const btn = e.target.querySelector('button[type="submit"]');
                 setBtnLoading(btn, true, 'Đang thêm...');
-                const trip = store.trips.find(t => t.id === store.activeTripId);
                 store.newMemberName = ''; input.value = '';
                 const newMember = { id: generateId(), name, icon: store.newMemberIcon || 'user', childRate: store.newChildRate };
                 // Reset icon and child rate after adding
                 store.newMemberIcon = 'user';
                 store.newChildRate = null;
-                const ok = await updateTripInDB({ ...trip, members: [...trip.members, newMember] });
+                const ok = await mutateTrip(store.activeTripId, (t) => ({ members: [...t.members, newMember] }));
                 if (ok) showToast('Đã thêm thành viên', 'success');
                 else setBtnLoading(btn, false);
             }
@@ -2060,6 +2957,18 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 updateAmountHint(e.target.value);
             }
             if (e.target.id === 'ex-payer') store.expenseForm.payerId = e.target.value;
+            if (e.target.id === 'adv-amount') store.advanceForm.amount = e.target.value;
+            if (store.bankModal) {
+                if (e.target.id === 'bank-account') store.bankModal.accountNumber = e.target.value;
+                if (e.target.id === 'bank-name') store.bankModal.accountName = e.target.value;
+                if (e.target.id === 'bank-filter') {
+                    store.bankModal.filter = e.target.value;
+                    // Narrow the bank list in place; a full render would steal focus from the search box on phones
+                    const sel = document.getElementById('bank-bin');
+                    const q = toAsciiText(e.target.value).toLowerCase();
+                    if (sel) [...sel.options].forEach(o => { if (o.value) o.hidden = !!q && !toAsciiText(o.textContent).toLowerCase().includes(q) && o.value !== store.bankModal.bin; });
+                }
+            }
         });
 
         document.addEventListener('keydown', (e) => {
@@ -2067,6 +2976,11 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 if (store.expenseModalOpen) { store.expenseModalOpen = false; render(); }
                 else if (store.imageSelectionModalOpen) { store.imageSelectionModalOpen = false; render(); }
                 else if (store.editTripModalOpen) { store.editTripModalOpen = false; render(); }
+                else if (store.shareModalOpen) closeShareModal();
+                else if (store.advanceModalOpen) { store.advanceModalOpen = false; render(); }
+                else if (store.bankModal) { store.bankModal = null; render(); }
+                else if (store.payQr) { store.payQr = null; render(); }
+                else if (store.receiptViewer) { store.receiptViewer = null; render(); }
             }
             if (e.key === 'Tab') {
                 const container = document.querySelector('#modal-container [role="dialog"]') || document.getElementById('confirm-overlay') || document.getElementById('prompt-overlay');
