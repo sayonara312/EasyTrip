@@ -2158,7 +2158,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
         };
 
         // PNG with the QR and transfer details, drawn locally, for saving or sending to the payer.
-        const payQrImage = async (info) => {
+        const payQrImage = (info) => {
             const { pq, from, to, bank, note, payload } = info;
             const qr = window.qrcode(0, 'M');
             qr.addData(payload);
@@ -2188,12 +2188,11 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             });
             ctx.fillStyle = '#999999'; ctx.textAlign = 'center'; ctx.font = '22px sans-serif';
             ctx.fillText('Mở app ngân hàng → Quét QR → chọn ảnh này', W / 2, H - 40);
-            return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            return canvas;
         };
 
-        // Android's download manager reads the blob after the click returns, so the URL must outlive it.
+        // The saved image is a data URL: Chrome on Android cannot save blob: images (download or long press).
         const dropPayQrImage = () => {
-            if (store.payQr && store.payQr.imageUrl) URL.revokeObjectURL(store.payQr.imageUrl);
             if (store.payQr) store.payQr.imageUrl = null;
         };
         const closePayQr = () => {
@@ -2483,19 +2482,19 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             if (action === 'download-pay-qr' || action === 'share-pay-qr') {
                 const info = currentPayQr();
                 if (!info) return;
-                const blob = await payQrImage(info);
-                const file = new File([blob], `chuyen-khoan-${toAsciiText(info.to.name).replace(/ /g, '-').toLowerCase() || 'qr'}.png`, { type: 'image/png' });
+                const canvas = payQrImage(info);
+                const fileName = `chuyen-khoan-${toAsciiText(info.to.name).replace(/ /g, '-').toLowerCase() || 'qr'}.png`;
                 if (action === 'share-pay-qr' && canShareFiles()) {
-                    try { await navigator.share({ files: [file], title: 'Mã QR chuyển khoản' }); } catch (err) { if (err && err.name !== 'AbortError') showToast('Không chia sẻ được ảnh.', 'error'); }
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                    try { await navigator.share({ files: [new File([blob], fileName, { type: 'image/png' })], title: 'Mã QR chuyển khoản' }); } catch (err) { if (err && err.name !== 'AbortError') showToast('Không chia sẻ được ảnh.', 'error'); }
                     return;
                 }
-                // Saves to the phone's Downloads (shows up in the gallery / Files app). The image is also shown
-                // below so it can be saved with a long press where downloads are blocked (e.g. in-app browsers).
-                dropPayQrImage();
-                const url = URL.createObjectURL(file);
+                // Saves to the phone's Downloads. The image is also shown below so it can be saved with a
+                // long press where downloads are blocked (e.g. in-app browsers of Zalo/Messenger).
+                const url = canvas.toDataURL('image/png');
                 store.payQr.imageUrl = url;
                 const a = document.createElement('a');
-                a.href = url; a.download = file.name;
+                a.href = url; a.download = fileName;
                 document.body.appendChild(a); a.click(); a.remove();
                 document.getElementById('pay-qr-image')?.remove();
                 document.querySelector('#modal-container [data-action="copy-pay-info"]')?.insertAdjacentHTML('beforebegin', payQrImageBlock(url));
