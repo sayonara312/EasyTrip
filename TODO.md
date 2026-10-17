@@ -34,18 +34,29 @@ Làm xong đánh dấu `[x]`.
 
 ## 3. Giới hạn API key (giảm rủi ro lạm dụng quota/billing)
 
-- [ ] Google Cloud Console → **APIs & Services → Credentials**
-- [ ] Chọn Firebase browser key đang dùng
-- [ ] **Application restriction** = **Websites**
-- [ ] Thêm domain thật, ví dụ `<tên-github>.github.io/*`
-- [ ] Save
+- [ ] Mở https://console.cloud.google.com/apis/credentials?project=easytrip-55faf
+- [ ] Chọn key **Browser key (auto created by Firebase)** (key bắt đầu bằng `AIzaSyDKoaSt`)
+- [ ] **Application restrictions** = **Websites**, thêm:
+  - `https://easytrip-55faf.web.app/*`
+  - `https://easytrip-55faf.firebaseapp.com/*`
+  - `https://easytrip-55faf--*.web.app/*` (link preview channel)
+  - `http://localhost:8000/*` (chạy local bằng `Start.bat`)
+- [ ] **API restrictions** = **Restrict key**, chỉ tick: Identity Toolkit API, Token Service API, Cloud Firestore API, Firebase App Check API
+- [ ] Save, đợi ~5 phút rồi mở app kiểm tra vẫn tạo được chuyến đi
 
 ## 4. Bật Firebase App Check (chặn request ngoài app)
 
-- [ ] Firebase Console → **Build → App Check**
-- [ ] Đăng ký app web với **reCAPTCHA v3**
-- [ ] Lấy site key / secret key và dán vào cấu hình
-- [ ] Bật enforcement cho Firestore sau khi đã chạy thử ổn
+- [ ] Tạo reCAPTCHA v3 tại https://www.google.com/recaptcha/admin/create, domain: `easytrip-55faf.web.app`, `easytrip-55faf.firebaseapp.com`, `localhost`
+- [ ] Firebase Console → **Build → App Check → Apps** → chọn web app → **reCAPTCHA** → dán **secret key** → Save
+- [ ] Dán **site key** vào `APP_CHECK_SITE_KEY` trong `index.html`, deploy lại hosting
+- [ ] Chạy local: mở Console trình duyệt, copy *App Check debug token* → Firebase Console → App Check → **Manage debug tokens** → thêm
+- [ ] Xem tab **APIs → Cloud Firestore** vài ngày, khi tỉ lệ *Verified requests* gần 100% thì bấm **Enforce**
+
+## 4b. Dọn bản Hosting cũ (từng lộ `.git/`)
+
+- [ ] Firebase Console → **Hosting** → bảng **Release history** của site `easytrip-55faf`
+- [ ] Với bản deploy đầu tiên ngày 17/10/2026 (bản 53 file): menu ⋮ → **Delete**
+- [ ] (Tùy chọn) **Release storage settings** → giữ tối đa vài bản để bản cũ tự bị xóa
 
 ## 5. Quy tắc về Gemini API key
 

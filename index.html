@@ -422,7 +422,7 @@
         // Firebase and Google GenAI are loaded dynamically so the page still renders
         // when opened via file:// or when the CDN is unreachable.
         let initializeApp, getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp;
-        let query, where, getDoc, setDoc, runTransaction, arrayUnion;
+        let query, where, getDoc, getDocs, setDoc, runTransaction, arrayUnion, writeBatch;
         let getAuth, signInAnonymously, onAuthStateChanged;
         let GoogleGenAI, Type;
 
@@ -436,6 +436,8 @@
             appId: "1:692521389570:web:08a133c46013f7bc03611b"
         };
         const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.8.0';
+        // reCAPTCHA v3 site key đăng ký trong Firebase Console → App Check. Để trống = tắt App Check.
+        const APP_CHECK_SITE_KEY = '';
 
         let db = null;
         let auth = null;
@@ -454,10 +456,16 @@
                     ]);
                     ({ initializeApp } = fbApp);
                     ({ getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp,
-                        query, where, getDoc, setDoc, runTransaction, arrayUnion } = fbFire);
+                        query, where, getDoc, getDocs, setDoc, runTransaction, arrayUnion, writeBatch } = fbFire);
                     ({ getAuth, signInAnonymously, onAuthStateChanged } = fbAuth);
 
                     firebaseApp = initializeApp(firebaseConfig);
+                    if (APP_CHECK_SITE_KEY) {
+                        // On localhost App Check prints a debug token to the console; register it in Console → App Check → Manage debug tokens.
+                        if (['localhost', '127.0.0.1'].includes(window.location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+                        const { initializeAppCheck, ReCaptchaV3Provider } = await import(`${FIREBASE_SDK}/firebase-app-check.js`);
+                        initializeAppCheck(firebaseApp, { provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
+                    }
                     db = getFirestore(firebaseApp);
                     auth = getAuth(firebaseApp);
                 } catch (e) {
@@ -528,6 +536,7 @@
         const FALLBACK_IMAGE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
             '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="100%" height="100%" fill="#e2e8f0"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#94a3b8" font-size="20" font-family="Arial,sans-serif">No Image</text></svg>'
         )}`;
+        window.FALLBACK_IMAGE = FALLBACK_IMAGE; // used by inline onerror handlers
 
         const encodeData = (data) => {
             try {
@@ -787,6 +796,7 @@
         // --- STATE MANAGEMENT ---
         const store = {
             uid: null, // anonymous auth uid of this browser
+            authError: '', // user-facing reason sign-in failed
             trips: [], // trips this uid can edit
             externalTrip: null, // trip opened via link that is not in `trips`
             linkTripId: null, // id from #trip=<id>
@@ -911,11 +921,11 @@
                 await initFirebase();
                 if (!db || !auth) { render(); return; }
 
-                if (store.linkTripId) watchLinkTrip(store.linkTripId);
-
                 onAuthStateChanged(auth, async (user) => {
                     store.uid = user ? user.uid : null;
                     subscribeMyTrips();
+                    // Reading a trip requires sign-in, so the shared-link listener starts only once we have a uid
+                    if (store.uid && store.linkTripId) watchLinkTrip(store.linkTripId);
                     if (store.uid && store.pendingEditKey && store.linkTripId) {
                         const key = store.pendingEditKey;
                         store.pendingEditKey = null;
@@ -928,6 +938,10 @@
                     await signInAnonymously(auth);
                 } catch (authErr) {
                     console.warn('Anonymous sign-in failed (bật Anonymous provider trong Firebase Console):', authErr);
+                    const code = authErr && authErr.code;
+                    store.authError = (code === 'auth/configuration-not-found' || code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation')
+                        ? 'Chưa bật đăng nhập ẩn danh (Anonymous) trong Firebase Authentication.'
+                        : 'Không đăng nhập được. Kiểm tra kết nối mạng rồi tải lại trang.';
                 }
             })();
         };
@@ -964,6 +978,10 @@
 
         // --- DB FUNCTIONS ---
         const createTripInDB = async (name, coverImage = null) => {
+            if (!db || !store.uid) {
+                showToast(store.authError || 'Đang kết nối, vui lòng thử lại sau giây lát.', 'error');
+                return false;
+            }
             try {
                 const newTrip = {
                     name: name,
@@ -1026,7 +1044,12 @@
         const deleteTripFromDB = async (id) => {
             if (!id) return false;
             try {
-                await deleteDoc(doc(db, TRIPS_COLLECTION, id));
+                const joinRequests = await getDocs(collection(db, TRIPS_COLLECTION, id, 'joinRequests'));
+                const batch = writeBatch(db);
+                joinRequests.forEach(d => batch.delete(d.ref));
+                batch.delete(doc(db, SECRETS_COLLECTION, id));
+                batch.delete(doc(db, TRIPS_COLLECTION, id));
+                await batch.commit();
                 if (store.activeTripId === id) store.activeTripId = null;
                 render();
                 showToast('Đã xóa chuyến đi', 'success');
@@ -1122,7 +1145,7 @@
                 : store.trips.map(trip => `
                     <div class="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-200 flex flex-col h-full">
                         <div class="relative h-40 overflow-hidden cursor-pointer" data-action="select-trip" data-id="${escapeHtml(trip.id)}">
-                            <img src="${escapeHtml(trip.coverImage)}" alt="${escapeHtml(trip.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src=FALLBACK_IMAGE" />
+                            <img src="${escapeHtml(trip.coverImage)}" alt="${escapeHtml(trip.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                             <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                             <h3 class="absolute bottom-3 left-4 right-4 text-xl font-bold text-white shadow-black/50 drop-shadow-md truncate">${escapeHtml(trip.name)}</h3>
                         </div>
@@ -1160,7 +1183,7 @@
                                 <label class="block text-sm font-medium text-gray-700">Ảnh bìa (Tùy chọn)</label>
                                 <div class="flex gap-4 items-end">
                                     <div class="w-32 h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
-                                         <img id="preview-new-cover" src="${store.selectedImage || 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"150\" height=\"80\"><rect width=\"100%\" height=\"100%\" fill=\"#f1f5f9\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"central\" text-anchor=\"middle\" fill=\"#94a3b8\" font-size=\"14\" font-family=\"Arial,sans-serif\">Auto</text></svg>')}" class="w-full h-full object-cover" onerror="this.src=FALLBACK_IMAGE" />
+                                         <img id="preview-new-cover" src="${store.selectedImage || 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"150\" height=\"80\"><rect width=\"100%\" height=\"100%\" fill=\"#f1f5f9\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"central\" text-anchor=\"middle\" fill=\"#94a3b8\" font-size=\"14\" font-family=\"Arial,sans-serif\">Auto</text></svg>')}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                                          <button type="button" data-action="open-image-selector" class="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><i data-lucide="image" class="w-6 h-6"></i></button>
                                     </div>
                                     <div class="text-xs text-gray-500 pb-1">Bấm vào ảnh để thay đổi</div>
@@ -1552,7 +1575,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                         <button data-action="back-to-list" class="text-gray-500 hover:text-indigo-600 flex items-center mb-4"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Quay lại</button>
                         <div class="bg-white rounded-2xl shadow-md overflow-hidden relative group">
                             <div class="h-48 w-full relative">
-                                <img src="${escapeHtml(trip.coverImage)}" class="w-full h-full object-cover" onerror="this.src=FALLBACK_IMAGE" />
+                                <img src="${escapeHtml(trip.coverImage)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                                 <div class="absolute inset-0 bg-black/30 flex items-end p-6">
                                     <div class="min-w-0"><h1 class="text-3xl font-bold text-white mb-1 break-words">${escapeHtml(trip.name)}</h1><p class="text-white/90 text-sm flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> ${members.length} thành viên • Tổng chi: <span class="font-bold text-green-300">${formatCurrency(totalSpent)}</span></p></div>
                                 </div>
@@ -1639,7 +1662,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                                     ${GALLERIES.map(url => `
                                         <div class="relative aspect-video rounded-lg overflow-hidden cursor-pointer group" data-action="select-gallery-image" data-url="${url}">
-                                            <img src="${url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform" onerror="this.src=FALLBACK_IMAGE" />
+                                            <img src="${url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform" onerror="this.onerror=null;this.src=window.FALLBACK_IMAGE" />
                                             ${store.selectedImage === url ? '<div class="absolute inset-0 bg-indigo-600/40 flex items-center justify-center"><i data-lucide="check" class="text-white w-8 h-8"></i></div>' : ''}
                                         </div>
                                     `).join('')}
@@ -2082,12 +2105,13 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     categoryIcon: store.expenseForm.icon
                 };
                 const editingId = store.editingExpenseId;
+                const now = expenseData.date;
                 const wasEditing = !!editingId;
                 const ok = await mutateTrip(store.activeTripId, (t) => {
                     if (editingId && !t.expenses.some(e => e.id === editingId)) throw new MutationAbort('Khoản chi này vừa bị người khác xóa.');
                     return {
                         expenses: editingId
-                            ? t.expenses.map(e => e.id === editingId ? expenseData : e)
+                            ? t.expenses.map(e => e.id === editingId ? { ...expenseData, date: e.date || now } : e)
                             : [expenseData, ...t.expenses]
                     };
                 });

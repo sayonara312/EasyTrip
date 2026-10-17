@@ -7,7 +7,7 @@ rules_version = '2';
 // - App đăng nhập ẩn danh (anonymous auth). Phải bật provider "Anonymous"
 //   trong Firebase Console -> Authentication -> Sign-in method trước khi deploy rules này.
 // - Mỗi chuyến đi có ownerId + editors (danh sách uid được sửa).
-// - Ai có id chuyến đi cũng xem được (link xem #trip=<id>), nhưng không liệt kê được chuyến của người khác.
+// - Ai có id chuyến đi (và đã đăng nhập ẩn danh) cũng xem được qua link xem #trip=<id>, nhưng không liệt kê được chuyến của người khác.
 // - Người có link sửa (#trip=<id>&key=<editKey>) tự thêm mình vào editors qua joinRequests.
 // - Chuyến cũ (chưa có editors) chỉ sửa được sau khi có người "Nhận quyền sở hữu".
 
@@ -42,8 +42,9 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      // Xem một chuyến theo id (link chia sẻ)
-      allow get: if true;
+      // Xem một chuyến theo id (link chia sẻ). App luôn đăng nhập ẩn danh nên người có link vẫn xem được,
+      // nhưng không gọi thẳng REST API mà không có tài khoản được.
+      allow get: if isSignedIn();
 
       // Chỉ liệt kê được chuyến mình là editor (query where editors array-contains uid)
       allow list: if isSignedIn() && request.auth.uid in resource.data.editors;
@@ -73,8 +74,9 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
 
-      // Bằng chứng người dùng có khóa sửa. Không ai đọc được.
+      // Bằng chứng người dùng có khóa sửa. Chỉ chủ chuyến liệt kê/xóa được (khi xóa chuyến).
       match /joinRequests/{uid} {
+        allow list, delete: if isSignedIn() && tripData(tripId).ownerId == request.auth.uid;
         allow create, update: if isSignedIn()
           && uid == request.auth.uid
           && request.resource.data.key is string
@@ -82,9 +84,10 @@ service cloud.firestore {
       }
     }
 
-    // Khóa sửa của từng chuyến. Chỉ editor đọc/tạo được, không sửa/xóa.
+    // Khóa sửa của từng chuyến. Chỉ editor đọc/tạo được; chỉ chủ xóa được (khi xóa chuyến).
     match /tripSecrets/{tripId} {
       allow get, create: if isEditorOf(tripData(tripId));
+      allow delete: if isSignedIn() && tripData(tripId).ownerId == request.auth.uid;
     }
 
     // Chặn mọi truy cập khác theo mặc định
