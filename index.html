@@ -2191,20 +2191,33 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             return canvas;
         };
 
-        // The saved image is a data URL: Chrome on Android cannot save blob: images (download or long press).
+        // Saving a file from a web page varies by browser, but "long press the image → Download image"
+        // works everywhere, so the QR opens full screen for that. The image is a data URL because
+        // Chrome on Android cannot save blob: images.
         const dropPayQrImage = () => {
-            if (store.payQr) store.payQr.imageUrl = null;
+            document.getElementById('qr-fullscreen')?.remove();
+        };
+        const showQrFullscreen = (url, fileName) => {
+            dropPayQrImage();
+            document.body.insertAdjacentHTML('beforeend', `
+                <div id="qr-fullscreen" class="fixed inset-0 z-[120] flex flex-col" style="background:#111;" role="dialog" aria-modal="true" aria-label="Lưu ảnh QR">
+                    <div class="flex items-center justify-between gap-2 px-3 py-2 text-white" style="padding-top: max(0.5rem, env(safe-area-inset-top));">
+                        <span class="font-bold">Lưu ảnh QR</span>
+                        <button data-action="close-qr-fullscreen" aria-label="Đóng" class="icon-btn text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    </div>
+                    <p class="px-4 pb-3 text-center text-white text-base leading-snug"><b>Nhấn giữ ảnh</b> → chọn <b>"Tải hình ảnh xuống"</b> hoặc <b>"Lưu ảnh"</b>.</p>
+                    <div class="flex-1 min-h-0 flex items-center justify-center px-3">
+                        <img src="${escapeHtml(url)}" alt="Ảnh QR chuyển khoản" class="max-h-full max-w-full w-auto h-auto bg-white" style="-webkit-touch-callout: default; user-select: auto;" />
+                    </div>
+                    <p class="px-4 py-3 text-center text-white/70 text-xs" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">Ảnh được lưu vào thư mục <b>Download / Tải xuống</b>. Trong app ngân hàng: Quét QR → chọn ảnh từ thư viện. Tên file: ${escapeHtml(fileName)}</p>
+                </div>`);
+            if (window.lucide) window.lucide.createIcons();
         };
         const closePayQr = () => {
             dropPayQrImage();
             store.payQr = null;
             render();
         };
-
-        const payQrImageBlock = (url) => `<div id="pay-qr-image" class="border-2 border-dashed border-indigo-300 p-2 bg-indigo-50">
-            <p class="text-xs text-indigo-900 mb-2">Nếu ảnh chưa tải về: <b>nhấn giữ ảnh này → "Tải hình ảnh xuống" / "Lưu ảnh"</b>.</p>
-            <img src="${escapeHtml(url)}" alt="Ảnh QR chuyển khoản" class="w-full h-auto bg-white" />
-        </div>`;
 
         const payAmountHintHtml = (pq) => (Math.round(pq.amount) !== Math.round(pq.suggestedAmount) ? `<p class="text-xs text-amber-700 mt-1">Gợi ý theo công nợ: ${formatCurrency(pq.suggestedAmount)} · <button type="button" data-action="reset-pay-amount" class="underline min-h-[40px]">Dùng lại</button></p>` : `<p class="text-xs text-gray-500 mt-1">Theo công nợ. Sửa nếu muốn trả một phần.</p>`);
 
@@ -2219,8 +2232,6 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             if (preview) preview.textContent = info.note || '(trống)';
             const hint = document.getElementById('pay-amount-hint');
             if (hint) hint.innerHTML = payAmountHintHtml(info.pq);
-            const saved = document.getElementById('pay-qr-image');
-            if (saved) saved.remove();
         };
 
         const canShareFiles = () => {
@@ -2245,9 +2256,8 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 <div id="pay-qr-svg" class="w-56 h-56 bg-white p-1 border border-gray-200" aria-label="Mã VietQR chuyển khoản">${qrSvg(payload)}</div>
                                 <p class="text-xs text-gray-500 text-center">Quét bằng app ngân hàng trên máy khác, hoặc lưu ảnh rồi trong app chọn <b>Quét QR → chọn ảnh từ thư viện</b>.</p>
                                 <div class="w-full grid grid-cols-1 gap-2 mt-1">
-                                    <button data-action="download-pay-qr" class="box-btn bg-indigo-600 text-white flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="download" class="w-4 h-4"></i> Tải ảnh QR về máy</button>
+                                    <button data-action="download-pay-qr" class="box-btn bg-indigo-600 text-white flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="download" class="w-4 h-4"></i> Tải ảnh QR</button>
                                     ${canShareFiles() ? `<button data-action="share-pay-qr" class="box-btn-ghost flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="share-2" class="w-4 h-4"></i> Gửi ảnh QR</button>` : ''}
-                                    ${pq.imageUrl ? payQrImageBlock(pq.imageUrl) : ''}
                                     <button data-action="copy-pay-info" class="box-btn-ghost flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm"><i data-lucide="copy" class="w-4 h-4"></i> Sao chép STK &amp; số tiền</button>
                                 </div>
                             </div>
@@ -2480,6 +2490,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 render();
             }
             if (action === 'close-pay-qr') closePayQr();
+            if (action === 'close-qr-fullscreen') dropPayQrImage();
             if (action === 'reset-pay-amount' && store.payQr) { dropPayQrImage(); store.payQr.amount = store.payQr.suggestedAmount; store.payQr.amountText = null; render(); }
             if (action === 'download-pay-qr' || action === 'share-pay-qr') {
                 const info = currentPayQr();
@@ -2491,17 +2502,13 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     try { await navigator.share({ files: [new File([blob], fileName, { type: 'image/png' })], title: 'Mã QR chuyển khoản' }); } catch (err) { if (err && err.name !== 'AbortError') showToast('Không chia sẻ được ảnh.', 'error'); }
                     return;
                 }
-                // Saves to the phone's Downloads. The image is also shown below so it can be saved with a
-                // long press where downloads are blocked (e.g. in-app browsers of Zalo/Messenger).
                 const url = canvas.toDataURL('image/png');
-                store.payQr.imageUrl = url;
+                // Best effort automatic download (goes to Downloads where the browser allows it)...
                 const a = document.createElement('a');
                 a.href = url; a.download = fileName;
                 document.body.appendChild(a); a.click(); a.remove();
-                document.getElementById('pay-qr-image')?.remove();
-                document.querySelector('#modal-container [data-action="copy-pay-info"]')?.insertAdjacentHTML('beforebegin', payQrImageBlock(url));
-                document.getElementById('pay-qr-image')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                showToast('Đang tải ảnh QR. Nếu chưa thấy, nhấn giữ ảnh bên dưới để lưu.', 'success');
+                // ...and the way that always works: long press the full-screen image.
+                showQrFullscreen(url, fileName);
             }
             if (action === 'copy-pay-info') {
                 const info = currentPayQr();
@@ -3036,6 +3043,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
         });
 
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('qr-fullscreen')) { dropPayQrImage(); return; }
             if (e.key === 'Escape') {
                 if (store.expenseModalOpen) { store.expenseModalOpen = false; render(); }
                 else if (store.imageSelectionModalOpen) { store.imageSelectionModalOpen = false; render(); }
