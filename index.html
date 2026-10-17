@@ -1525,6 +1525,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             };
 
             const renderReportTab = () => {
+                // Average share of one adult: children count as their weight (1/2, 1/4)
+                const totalWeight = members.reduce((sum, m) => sum + memberWeight(m), 0);
+                const hasChildren = members.some(m => m.childRate);
                 if (members.length === 0) return `<div class="text-center py-12 text-gray-400"><i data-lucide="bar-chart-3" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p>Chưa có dữ liệu để tổng kết.</p><p class="text-sm mt-1">Thêm thành viên và khoản chi để xem báo cáo.</p></div>`;
                 const topSpender = [...memberStats].sort((a, b) => b.paid - a.paid)[0];
                 const mostActive = [...memberStats].sort((a, b) => b.txCount - a.txCount)[0];
@@ -1590,7 +1593,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                     <div class="space-y-6 animate-fade-in-up">
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                             <div class="bg-blue-50 p-3 sm:p-4 rounded-xl border border-blue-200"><p class="text-blue-600 text-xs font-bold uppercase">Tổng Chi Phí</p><p class="text-lg sm:text-2xl font-bold text-blue-900 mt-1 break-words">${formatCurrency(totalSpent)}</p></div>
-                            <div class="bg-purple-50 p-3 sm:p-4 rounded-xl border border-purple-200"><p class="text-purple-600 text-xs font-bold uppercase">Bình Quân/Người</p><p class="text-lg sm:text-2xl font-bold text-purple-900 mt-1 break-words">${formatCurrency(members.length ? totalSpent / members.length : 0)}</p></div>
+                            <div class="bg-purple-50 p-3 sm:p-4 rounded-xl border border-purple-200"><p class="text-purple-600 text-xs font-bold uppercase">${hasChildren ? 'Bình Quân/Người Lớn' : 'Bình Quân/Người'}</p><p class="text-lg sm:text-2xl font-bold text-purple-900 mt-1 break-words">${formatCurrency(totalWeight ? totalSpent / totalWeight : 0)}</p>${hasChildren ? '<p class="text-[10px] text-purple-600 mt-0.5">Trẻ em tính theo hệ số 1/2, 1/4</p>' : ''}</div>
                             <div class="bg-amber-50 p-3 sm:p-4 rounded-xl border border-amber-200"><p class="text-amber-600 text-xs font-bold uppercase">Top Chi Tiền</p><p class="text-xl font-bold text-amber-900 mt-1 truncate">${topSpender && topSpender.paid > 0 ? escapeHtml(topSpender.name) : '---'}</p></div>
                             <div class="bg-green-50 p-3 sm:p-4 rounded-xl border border-green-200"><p class="text-green-600 text-xs font-bold uppercase">Top Giao Dịch</p><p class="text-xl font-bold text-green-900 mt-1 truncate">${mostActive && mostActive.txCount > 0 ? escapeHtml(mostActive.name) : '---'}</p></div>
                         </div>
