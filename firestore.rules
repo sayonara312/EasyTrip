@@ -41,6 +41,15 @@ service cloud.firestore {
         && (!('editors' in data) || (data.editors is list && data.editors.size() <= 50));
     }
 
+    // Thông tin ngân hàng của thành viên (để tạo QR chuyển khoản)
+    function isValidBank(data) {
+      return data.keys().hasOnly(['bin', 'bankName', 'accountNumber', 'accountName'])
+        && data.bin is string && data.bin.matches('^[0-9]{6}$')
+        && data.bankName is string && data.bankName.size() <= 40
+        && data.accountNumber is string && data.accountNumber.matches('^[0-9]{4,19}$')
+        && data.accountName is string && data.accountName.size() <= 50;
+    }
+
     match /trips/{tripId} {
       // Xem một chuyến theo id (link chia sẻ). App luôn đăng nhập ẩn danh nên người có link vẫn xem được,
       // nhưng không gọi thẳng REST API mà không có tài khoản được.
@@ -73,6 +82,12 @@ service cloud.firestore {
       );
 
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      // Số tài khoản ngân hàng: chỉ người có quyền sửa đọc/ghi được (người cầm link xem không thấy).
+      match /bankAccounts/{memberId} {
+        allow read, delete: if isEditorOf(tripData(tripId));
+        allow create, update: if isEditorOf(tripData(tripId)) && isValidBank(request.resource.data);
+      }
 
       // Bằng chứng người dùng có khóa sửa. Chỉ chủ chuyến liệt kê/xóa được (khi xóa chuyến).
       match /joinRequests/{uid} {

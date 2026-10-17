@@ -833,11 +833,45 @@
 
         const syncScrollLock = () => {
             const overlayOpen = !!document.getElementById('confirm-overlay') || !!document.getElementById('prompt-overlay');
-            const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || store.shareModalOpen || store.advanceModalOpen || overlayOpen;
+            const modalOpen = store.expenseModalOpen || store.imageSelectionModalOpen || store.editTripModalOpen || store.shareModalOpen || store.advanceModalOpen || !!store.bankModal || !!store.payQr || overlayOpen;
             document.body.style.overflow = modalOpen ? 'hidden' : '';
             // The floating theme button would cover the sticky Save button of bottom sheets
             const themeSwitcher = document.getElementById('theme-switcher');
             if (themeSwitcher) themeSwitcher.style.display = modalOpen ? 'none' : '';
+        };
+
+        // --- VIETQR ---
+        // Banks that accept VietQR transfers: [short name, BIN]. Source: api.vietqr.io/v2/banks (transferSupported), 2026-10-17.
+        const VN_BANKS = [["VietinBank", "970415"], ["Vietcombank", "970436"], ["BIDV", "970418"], ["Agribank", "970405"], ["OCB", "970448"], ["MBBank", "970422"], ["Techcombank", "970407"], ["ACB", "970416"], ["VPBank", "970432"], ["TPBank", "970423"], ["Sacombank", "970403"], ["HDBank", "970437"], ["VietCapitalBank", "970454"], ["SCB", "970429"], ["VIB", "970441"], ["SHB", "970443"], ["Eximbank", "970431"], ["MSB", "970426"], ["CAKE", "546034"], ["Ubank", "546035"], ["Timo", "963388"], ["SaigonBank", "970400"], ["BacABank", "970409"], ["PVcomBank Pay", "971133"], ["MoMo", "971025"], ["PVcomBank", "970412"], ["MBV", "970414"], ["NCB", "970419"], ["ShinhanBank", "970424"], ["ABBANK", "970425"], ["VietABank", "970427"], ["NamABank", "970428"], ["PGBank", "970430"], ["VietBank", "970433"], ["BaoVietBank", "970438"], ["SeABank", "970440"], ["COOPBANK", "970446"], ["LPBank", "970449"], ["KienLongBank", "970452"], ["KBank", "668888"], ["ZaloPay", "971101"], ["MVAS", "971032"], ["IndovinaBank", "970434"], ["CIMB", "422589"], ["CBBank", "970444"], ["Woori", "970457"], ["KookminHN", "970462"], ["KookminHCM", "970463"]];
+        const bankByBin = (bin) => VN_BANKS.find(b => b[1] === bin);
+
+        // CRC-16/CCITT-FALSE, as required by the EMVCo QR spec
+        const crc16 = (str) => {
+            let crc = 0xFFFF;
+            for (let i = 0; i < str.length; i++) {
+                crc ^= str.charCodeAt(i) << 8;
+                for (let j = 0; j < 8; j++) crc = ((crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF;
+            }
+            return crc.toString(16).toUpperCase().padStart(4, '0');
+        };
+        const tlv = (id, value) => id + String(value.length).padStart(2, '0') + value;
+
+        // Vietnamese → plain ASCII letters/digits/spaces (bank apps reject other characters in the note)
+        const toAsciiText = (str) => String(str == null ? '' : str)
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+            .replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // NAPAS 247 "transfer to account" payload with a fixed amount and note
+        const buildVietQR = ({ bin, accountNumber, amount, purpose }) => {
+            const merchant = tlv('00', 'A000000727') + tlv('01', tlv('00', bin) + tlv('01', accountNumber)) + tlv('02', 'QRIBFTTA');
+            let payload = tlv('00', '01') + tlv('01', amount > 0 ? '12' : '11') + tlv('38', merchant) + tlv('53', '704');
+            if (amount > 0) payload += tlv('54', String(Math.round(amount)));
+            payload += tlv('58', 'VN');
+            const note = toAsciiText(purpose).slice(0, 25).trim();
+            if (note) payload += tlv('62', tlv('08', note));
+            payload += '6304';
+            return payload + crc16(payload);
         };
 
         // --- BALANCE CALCULATION ---
@@ -902,6 +936,9 @@
             activeTripId: null,
             isReadOnly: false, // derived from canEdit() on every render of a trip
             shareModalOpen: false,
+            bankAccounts: {}, // memberId -> { bin, bankName, accountNumber, accountName }; loaded only for editors
+            bankModal: null, // { memberId, bin, accountNumber, accountName, filter }
+            payQr: null, // { fromId, toId, amount }
             advanceModalOpen: false,
             advanceForm: { memberId: '', receiverId: '', amount: '' },
             activeTab: 'expenses',
@@ -969,6 +1006,24 @@
                 console.error("Firebase Error:", error);
                 render();
             });
+        };
+
+        // Bank details live in a subcollection that only editors can read, so they never reach view-link holders.
+        let unsubBank = null;
+        let bankListenerTripId = null;
+        const ensureBankListener = (trip) => {
+            const wanted = trip && db && canEdit(trip) ? trip.id : null;
+            if (wanted === bankListenerTripId) return;
+            if (unsubBank) { unsubBank(); unsubBank = null; }
+            bankListenerTripId = wanted;
+            store.bankAccounts = {};
+            if (!wanted) return;
+            unsubBank = onSnapshot(collection(db, TRIPS_COLLECTION, wanted, 'bankAccounts'), (snap) => {
+                const map = {};
+                snap.forEach(d => { map[d.id] = d.data(); });
+                store.bankAccounts = map;
+                render();
+            }, (error) => console.warn('Bank accounts listener:', error));
         };
 
         const randomKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
@@ -1142,9 +1197,13 @@
         const deleteTripFromDB = async (id) => {
             if (!id) return false;
             try {
-                const joinRequests = await getDocs(collection(db, TRIPS_COLLECTION, id, 'joinRequests'));
+                const [joinRequests, bankAccounts] = await Promise.all([
+                    getDocs(collection(db, TRIPS_COLLECTION, id, 'joinRequests')),
+                    getDocs(collection(db, TRIPS_COLLECTION, id, 'bankAccounts')),
+                ]);
                 const batch = writeBatch(db);
                 joinRequests.forEach(d => batch.delete(d.ref));
+                bankAccounts.forEach(d => batch.delete(d.ref));
                 batch.delete(doc(db, SECRETS_COLLECTION, id));
                 batch.delete(doc(db, TRIPS_COLLECTION, id));
                 await batch.commit();
@@ -1441,6 +1500,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 </div>
                                 <div class="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
                                     <span class="font-bold text-gray-800 whitespace-nowrap">${formatCurrency(s.amount)}</span>
+                                    ${!store.isReadOnly ? (store.bankAccounts[s.toId]
+                                        ? `<button data-action="open-pay-qr" data-from="${escapeHtml(s.fromId)}" data-to="${escapeHtml(s.toId)}" data-amount="${Math.round(s.amount)}" class="box-btn-ghost flex items-center gap-1.5 px-3 min-h-[40px] text-xs"><i data-lucide="qr-code" class="w-4 h-4"></i> QR</button>`
+                                        : `<button data-action="open-bank-modal" data-id="${escapeHtml(s.toId)}" class="flex items-center gap-1.5 px-2 min-h-[40px] text-xs text-gray-400 hover:text-indigo-600" title="Thêm số tài khoản của ${escapeHtml(s.to)} để tạo QR"><i data-lucide="landmark" class="w-4 h-4"></i> Chưa có STK</button>`) : ''}
                                 </div>
                             </div>
                             `).join('')}
@@ -1650,6 +1712,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                     <button data-action="cancel-edit-child" aria-label="Hủy" class="icon-btn text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-4 h-4"></i></button>
                                 ` : `
                                     ${!store.isReadOnly ? `<button data-action="edit-child-rate" data-id="${escapeHtml(m.id)}" class="icon-btn text-gray-400 hover:text-indigo-500 rounded-full hover:bg-indigo-50 transition-colors" title="Sửa loại thành viên" aria-label="Sửa loại thành viên"><i data-lucide="edit-2" class="w-4 h-4"></i></button>` : ''}
+                                    ${!store.isReadOnly ? `<button data-action="open-bank-modal" data-id="${escapeHtml(m.id)}" class="icon-btn rounded-md ${store.bankAccounts[m.id] ? 'text-green-600' : 'text-gray-400 hover:text-indigo-500'}" title="${store.bankAccounts[m.id] ? 'Tài khoản ngân hàng: ' + escapeHtml(store.bankAccounts[m.id].bankName) : 'Thêm tài khoản ngân hàng'}" aria-label="Tài khoản ngân hàng"><i data-lucide="landmark" class="w-4 h-4"></i></button>` : ''}
                                     ${!store.isReadOnly ? `<button data-action="open-advance-modal" data-id="${escapeHtml(m.id)}" class="icon-btn text-indigo-600 hover:text-indigo-800 rounded-md" title="Ứng tiền" aria-label="Ứng tiền"><i data-lucide="wallet" class="w-4 h-4"></i></button>` : ''}
                                     ${!store.isReadOnly ? `<button data-action="remove-member" data-id="${escapeHtml(m.id)}" aria-label="Xóa thành viên" class="icon-btn text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                                 `}
@@ -1859,6 +1922,88 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 </div>`;
         };
 
+        const renderBankModal = () => {
+            const f = store.bankModal;
+            if (!f) return '';
+            const trip = getActiveTrip();
+            const member = trip && (trip.members || []).find(m => m.id === f.memberId);
+            if (!member) return '';
+            const filter = toAsciiText(f.filter || '').toLowerCase();
+            const banks = VN_BANKS.filter(b => !filter || toAsciiText(b[0]).toLowerCase().includes(filter) || b[1] === f.bin);
+            const existing = store.bankAccounts[f.memberId];
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="bank-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-bank-modal"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 id="bank-title" class="text-lg font-bold text-gray-900 min-w-0 truncate">Ngân hàng của ${escapeHtml(member.name)}</h3>
+                                <button data-action="close-bank-modal" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="bank-filter" class="block text-sm font-medium text-gray-700 mb-1">Ngân hàng</label>
+                                    <input type="text" id="bank-filter" value="${escapeHtml(f.filter || '')}" placeholder="Tìm: vcb, techcom, mb..." class="w-full rounded-md border border-gray-300 p-2 mb-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    <select id="bank-bin" class="w-full rounded-md border border-gray-300 p-2"><option value="">Chọn ngân hàng...</option>${banks.map(b => `<option value="${b[1]}" ${b[1] === f.bin ? 'selected' : ''}>${escapeHtml(b[0])}</option>`).join('')}</select>
+                                </div>
+                                <div>
+                                    <label for="bank-account" class="block text-sm font-medium text-gray-700 mb-1">Số tài khoản</label>
+                                    <input type="text" id="bank-account" inputmode="numeric" autocomplete="off" value="${escapeHtml(f.accountNumber || '')}" placeholder="Chỉ gồm chữ số" class="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label for="bank-name" class="block text-sm font-medium text-gray-700 mb-1">Tên chủ tài khoản</label>
+                                    <input type="text" id="bank-name" autocomplete="off" value="${escapeHtml(f.accountName || '')}" placeholder="VD: NGUYEN VAN AN" class="w-full rounded-md border border-gray-300 p-2 uppercase focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <p class="text-xs text-gray-500 flex gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i> Chỉ người có quyền sửa chuyến đi thấy thông tin này. Người cầm link xem không thấy.</p>
+                                <p id="bank-error" class="hidden text-sm text-red-600 font-medium"></p>
+                            </div>
+                            <div class="modal-actions flex justify-end gap-2 mt-6">
+                                ${existing ? `<button data-action="delete-bank" class="mr-auto px-3 min-h-[40px] text-red-600 hover:text-red-700 text-sm">Xóa</button>` : ''}
+                                <button data-action="close-bank-modal" class="box-btn-ghost px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
+                                <button data-action="save-bank" class="box-btn px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">Lưu</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const renderPayQrModal = () => {
+            const pq = store.payQr;
+            if (!pq) return '';
+            const trip = getActiveTrip();
+            const members = (trip && trip.members) || [];
+            const from = members.find(m => m.id === pq.fromId);
+            const to = members.find(m => m.id === pq.toId);
+            const bank = store.bankAccounts[pq.toId];
+            if (!trip || !from || !to || !bank) return '';
+            const note = toAsciiText(`EasyTrip ${from.name} tra ${to.name}`).slice(0, 25).trim();
+            const payload = buildVietQR({ bin: bank.bin, accountNumber: bank.accountNumber, amount: pq.amount, purpose: note });
+            return `
+                <div class="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="payqr-title">
+                    <div class="modal-wrap flex items-center justify-center min-h-screen px-4">
+                        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" data-action="close-pay-qr"></div>
+                        <div class="modal-panel relative bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 animate-fade-in-up">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 id="payqr-title" class="text-lg font-bold text-gray-900">Chuyển khoản</h3>
+                                <button data-action="close-pay-qr" aria-label="Đóng" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                            </div>
+                            <p class="text-sm mb-3 flex flex-wrap items-center gap-x-2"><span class="font-bold text-red-600">${escapeHtml(from.name)}</span><i data-lucide="arrow-right" class="w-4 h-4 text-gray-400"></i><span class="font-bold text-green-600">${escapeHtml(to.name)}</span></p>
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-56 h-56 bg-white p-1 border border-gray-200" aria-label="Mã VietQR chuyển khoản">${qrSvg(payload)}</div>
+                                <p class="text-xs text-gray-500 text-center">Mở app ngân hàng → Quét QR</p>
+                            </div>
+                            <dl class="mt-4 text-sm divide-y divide-gray-100 border border-gray-200 rounded-md">
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Ngân hàng</dt><dd class="font-medium text-right">${escapeHtml(bank.bankName)}</dd></div>
+                                <div class="flex justify-between items-center gap-3 px-3 py-1"><dt class="text-gray-500">Số TK</dt><dd class="flex items-center gap-1 font-medium"><span class="break-all">${escapeHtml(bank.accountNumber)}</span><button data-action="copy-account" data-value="${escapeHtml(bank.accountNumber)}" aria-label="Sao chép số tài khoản" class="icon-btn text-gray-400 hover:text-indigo-600"><i data-lucide="copy" class="w-4 h-4"></i></button></dd></div>
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Chủ TK</dt><dd class="font-medium text-right break-words">${escapeHtml(bank.accountName || '—')}</dd></div>
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Số tiền</dt><dd class="font-bold text-right">${formatCurrency(pq.amount)}</dd></div>
+                                <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-gray-500">Nội dung</dt><dd class="font-medium text-right break-words">${escapeHtml(note)}</dd></div>
+                            </dl>
+                        </div>
+                    </div>
+                </div>`;
+        };
+
         const renderShareModal = () => {
             if (!store.shareModalOpen) return '';
             const trip = getActiveTrip();
@@ -1909,6 +2054,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             const selStart = active && typeof active.selectionStart === 'number' ? active.selectionStart : null;
             const selEnd = active && typeof active.selectionEnd === 'number' ? active.selectionEnd : null;
 
+            ensureBankListener(store.activeTripId ? getActiveTrip() : null);
             if (store.activeTripId) app.innerHTML = renderTripDetail();
             else app.innerHTML = renderTripList();
 
@@ -1917,6 +2063,8 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             modals += renderEditTripModal();
             modals += renderShareModal();
             modals += renderAdvanceModal();
+            modals += renderBankModal();
+            modals += renderPayQrModal();
             modalContainer.innerHTML = modals;
 
             if (window.lucide) window.lucide.createIcons();
@@ -1975,6 +2123,8 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             if (action === 'back-to-list') {
                 hideEditQr();
                 store.shareModalOpen = false;
+                store.bankModal = null;
+                store.payQr = null;
                 store.activeTripId = null;
                 store.linkTripId = null;
                 store.externalTrip = null;
@@ -2002,6 +2152,60 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             }
             if (action === 'share-trip') { store.shareModalOpen = true; render(); }
             if (action === 'close-share') closeShareModal();
+            if (action === 'open-bank-modal') {
+                const existing = store.bankAccounts[id] || {};
+                store.payQr = null;
+                store.bankModal = { memberId: id, bin: existing.bin || '', accountNumber: existing.accountNumber || '', accountName: existing.accountName || '', filter: '' };
+                render();
+            }
+            if (action === 'close-bank-modal') { store.bankModal = null; render(); }
+            if (action === 'save-bank') {
+                const f = store.bankModal;
+                if (!f) return;
+                const errEl = document.getElementById('bank-error');
+                const bank = bankByBin(f.bin);
+                const accountNumber = String(f.accountNumber || '').replace(/\s+/g, '');
+                const accountName = toAsciiText(f.accountName).toUpperCase().slice(0, 50);
+                const problems = [];
+                if (!bank) problems.push('ngân hàng');
+                if (!/^[0-9]{4,19}$/.test(accountNumber)) problems.push('số tài khoản (4–19 chữ số)');
+                if (problems.length) {
+                    if (errEl) { errEl.textContent = 'Vui lòng kiểm tra: ' + problems.join(', ') + '.'; errEl.classList.remove('hidden'); }
+                    return;
+                }
+                setBtnLoading(target, true, 'Đang lưu...');
+                try {
+                    await setDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'bankAccounts', f.memberId), { bin: bank[1], bankName: bank[0], accountNumber, accountName });
+                    store.bankModal = null;
+                    render();
+                    showToast('Đã lưu tài khoản ngân hàng', 'success');
+                } catch (err) {
+                    console.error(err);
+                    setBtnLoading(target, false);
+                    showToast('Không lưu được. ' + (err.message || ''), 'error');
+                }
+            }
+            if (action === 'delete-bank') {
+                const f = store.bankModal;
+                if (!f || !(await showConfirm('Xóa thông tin ngân hàng của thành viên này?', 'Xóa tài khoản ngân hàng'))) return;
+                try {
+                    await deleteDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'bankAccounts', f.memberId));
+                    store.bankModal = null;
+                    render();
+                    showToast('Đã xóa tài khoản ngân hàng', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Không xóa được. ' + (err.message || ''), 'error');
+                }
+            }
+            if (action === 'open-pay-qr') {
+                store.payQr = { fromId: target.dataset.from, toId: target.dataset.to, amount: Number(target.dataset.amount) || 0 };
+                render();
+            }
+            if (action === 'close-pay-qr') { store.payQr = null; render(); }
+            if (action === 'copy-account') {
+                try { await navigator.clipboard.writeText(target.dataset.value || ''); showToast('Đã sao chép số tài khoản', 'success'); } catch (err) { console.warn(err); }
+            }
             if (action === 'hide-edit-qr') { hideEditQr(); render(); }
             if (action === 'show-edit-qr') {
                 const trip = getActiveTrip();
@@ -2067,7 +2271,12 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                             : e)
                     };
                 });
-                if (ok) showToast('Đã xóa thành viên', 'success');
+                if (ok) {
+                    if (store.bankAccounts[id]) {
+                        try { await deleteDoc(doc(db, TRIPS_COLLECTION, store.activeTripId, 'bankAccounts', id)); } catch (err) { console.warn(err); }
+                    }
+                    showToast('Đã xóa thành viên', 'success');
+                }
             }
 
             if (action === 'open-advance-modal') {
@@ -2320,6 +2529,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 return;
             }
             if (e.target.id === 'adv-receiver') { store.advanceForm.receiverId = e.target.value; return; }
+            if (e.target.id === 'bank-bin' && store.bankModal) { store.bankModal.bin = e.target.value; return; }
             if (e.target.dataset && e.target.dataset.advanceReceiver) {
                 const advanceId = e.target.dataset.advanceReceiver;
                 const receiverId = e.target.value;
@@ -2407,6 +2617,17 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
             }
             if (e.target.id === 'ex-payer') store.expenseForm.payerId = e.target.value;
             if (e.target.id === 'adv-amount') store.advanceForm.amount = e.target.value;
+            if (store.bankModal) {
+                if (e.target.id === 'bank-account') store.bankModal.accountNumber = e.target.value;
+                if (e.target.id === 'bank-name') store.bankModal.accountName = e.target.value;
+                if (e.target.id === 'bank-filter') {
+                    store.bankModal.filter = e.target.value;
+                    // Narrow the bank list in place; a full render would steal focus from the search box on phones
+                    const sel = document.getElementById('bank-bin');
+                    const q = toAsciiText(e.target.value).toLowerCase();
+                    if (sel) [...sel.options].forEach(o => { if (o.value) o.hidden = !!q && !toAsciiText(o.textContent).toLowerCase().includes(q) && o.value !== store.bankModal.bin; });
+                }
+            }
         });
 
         document.addEventListener('keydown', (e) => {
@@ -2416,6 +2637,8 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                 else if (store.editTripModalOpen) { store.editTripModalOpen = false; render(); }
                 else if (store.shareModalOpen) closeShareModal();
                 else if (store.advanceModalOpen) { store.advanceModalOpen = false; render(); }
+                else if (store.bankModal) { store.bankModal = null; render(); }
+                else if (store.payQr) { store.payQr = null; render(); }
             }
             if (e.key === 'Tab') {
                 const container = document.querySelector('#modal-container [role="dialog"]') || document.getElementById('confirm-overlay') || document.getElementById('prompt-overlay');
