@@ -1027,7 +1027,7 @@
             activeTripId: null,
             isReadOnly: false, // derived from canEdit() on every render of a trip
             shareModalOpen: false,
-            bankAccounts: {}, // memberId -> { bin, bankName, accountNumber, accountName }; loaded only for editors
+            bankAccounts: {}, // memberId -> { bin, bankName, accountNumber, accountName }
             bankModal: null, // { memberId, bin, accountNumber, accountName, filter }
             payQr: null, // { fromId, toId, amount }
             receiptCache: {}, // receiptId -> data URL, or 'error'
@@ -1101,11 +1101,11 @@
             });
         };
 
-        // Bank details live in a subcollection that only editors can read, so they never reach view-link holders.
+        // Bank details live in a subcollection: anyone viewing the trip can read them (to pay by QR), only editors write.
         let unsubBank = null;
         let bankListenerTripId = null;
         const ensureBankListener = (trip) => {
-            const wanted = trip && db && canEdit(trip) ? trip.id : null;
+            const wanted = trip && db && store.uid && !trip._localShare ? trip.id : null;
             if (wanted === bankListenerTripId) return;
             if (unsubBank) { unsubBank(); unsubBank = null; }
             bankListenerTripId = wanted;
@@ -1613,9 +1613,9 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                 </div>
                                 <div class="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
                                     <span class="font-bold text-gray-800 whitespace-nowrap">${formatCurrency(s.amount)}</span>
-                                    ${!store.isReadOnly ? (store.bankAccounts[s.toId]
+                                    ${store.bankAccounts[s.toId]
                                         ? `<button data-action="open-pay-qr" data-from="${escapeHtml(s.fromId)}" data-to="${escapeHtml(s.toId)}" data-amount="${Math.round(s.amount)}" class="box-btn-ghost flex items-center gap-1.5 px-3 min-h-[40px] text-xs"><i data-lucide="qr-code" class="w-4 h-4"></i> QR</button>`
-                                        : `<button data-action="open-bank-modal" data-id="${escapeHtml(s.toId)}" class="flex items-center gap-1.5 px-2 min-h-[40px] text-xs text-gray-400 hover:text-indigo-600" title="Thêm số tài khoản của ${escapeHtml(s.to)} để tạo QR"><i data-lucide="landmark" class="w-4 h-4"></i> Chưa có STK</button>`) : ''}
+                                        : (!store.isReadOnly ? `<button data-action="open-bank-modal" data-id="${escapeHtml(s.toId)}" class="flex items-center gap-1.5 px-2 min-h-[40px] text-xs text-gray-400 hover:text-indigo-600" title="Thêm số tài khoản của ${escapeHtml(s.to)} để tạo QR"><i data-lucide="landmark" class="w-4 h-4"></i> Chưa có STK</button>` : '')}
                                 </div>
                             </div>
                             `).join('')}
@@ -2128,7 +2128,7 @@ return `         <div class="p-8 text-center">             <div class="text-6xl 
                                     <label for="bank-name" class="block text-sm font-medium text-gray-700 mb-1">Tên chủ tài khoản</label>
                                     <input type="text" id="bank-name" autocomplete="off" value="${escapeHtml(f.accountName || '')}" placeholder="VD: NGUYEN VAN AN" class="w-full rounded-md border border-gray-300 p-2 uppercase focus:ring-2 focus:ring-indigo-500 outline-none" />
                                 </div>
-                                <p class="text-xs text-gray-500 flex gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i> Chỉ người có quyền sửa chuyến đi thấy thông tin này. Người cầm link xem không thấy.</p>
+                                <p class="text-xs text-gray-500 flex gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i> Người có link chuyến đi xem được để quét QR trả tiền; chỉ người có quyền sửa mới thay đổi được.</p>
                                 <p id="bank-error" class="hidden text-sm text-red-600 font-medium"></p>
                             </div>
                             <div class="modal-actions flex justify-end gap-2 mt-6">

@@ -97,9 +97,11 @@ service cloud.firestore {
         allow delete: if isEditorOf(tripData(tripId));
       }
 
-      // Số tài khoản ngân hàng: chỉ người có quyền sửa đọc/ghi được (người cầm link xem không thấy).
+      // Số tài khoản ngân hàng: ai xem được chuyến (link xem) cũng đọc được để quét QR trả tiền;
+      // chỉ người có quyền sửa mới thêm/sửa/xóa.
       match /bankAccounts/{memberId} {
-        allow read, delete: if isEditorOf(tripData(tripId));
+        allow read: if isSignedIn();
+        allow delete: if isEditorOf(tripData(tripId));
         allow create, update: if isEditorOf(tripData(tripId)) && isValidBank(request.resource.data);
       }
 
